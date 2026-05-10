@@ -1,6 +1,5 @@
-# baseURL akan di-override Vercel saat deploy via env HUGO_BASEURL
-# Untuk lokal, hugo server akan auto-pakai http://localhost:1313/
-baseURL = "https://husinhidayatul.vercel.app/"
+# Production URL (Vercel). Untuk lokal, hugo server auto-override ke localhost:1313
+baseURL = "https://blog-husin.vercel.app/"
 theme = "risotto"
 title = "~/husinhidayatul"
 author = "Husin Hidayatul"
