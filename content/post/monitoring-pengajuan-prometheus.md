@@ -10,6 +10,24 @@ categories = ["platform-monitoring"]
 
 Our backend already ships with Sentry for error capture and Sentry Session Replay for client-side breadcrumbs. Both are excellent at one thing: telling you *what broke* after the fact. Neither answers the operational question that wakes a maintainer at 3 AM: **is the pengajuan API healthy right now, and which endpoint is misbehaving?** This sprint I instrumented all 7 endpoints of the `pengajuan` feature with custom Prometheus metrics, defined business-meaningful outcome labels, and wrote the PromQL queries that will power our alert rules. Total diff: 8 files, 540 added lines, zero deletions.
 
+![Architecture diagram: request flow from browser through Django decorator into metrics.py, exposed at /api/metrics, scraped by Prometheus, visualized in Grafana, and routed to alerts](/images/monitoring-pengajuan-architecture.png)
+<!-- HOW TO CAPTURE:
+  Open https://excalidraw.com (free, no signup). Draw a left-to-right diagram with these nodes connected by arrows:
+  [Browser/Client] -> [Django view + @handle_pengajuan_service_exceptions] -> [metrics.py Counter/Histogram] -> [GET /api/metrics] -> [Prometheus (scrape every 15s)] -> [Grafana panels] -> [Alertmanager -> Discord/email].
+  Label the arrow between view and metrics.py "observe()" and the arrow from Prometheus to Grafana "datasource".
+  Export -> PNG with background, save to C:\PPL\blog-husin\static\images\monitoring-pengajuan-architecture.png
+-->
+
+## What this monitoring is designed to surface
+
+Three scenarios that the existing stack (Sentry + GCP defaults) cannot catch cleanly but that the new metrics make obvious:
+
+- **Permission drift after a role refactor.** A spike of `outcome="forbidden"` on a single endpoint within minutes of a deploy means the role check tightened by accident. Sentry sees this only if `PermissionDenied` is captured (it usually is not).
+- **Database connectivity blip.** A non-zero rate of `exception_type="OperationalError"` for 2 minutes is a pager-grade signal of pool exhaustion or a network partition. Host-level CPU dashboards lag this by 10 to 15 minutes.
+- **Business-logic regression.** A surge of `outcome="business_error"` on `ajukan_guru_besar` after a release means we just shipped validation that rejects legitimate submissions. Sentry will not flag this because no exception escaped; the 409 was returned cleanly.
+
+The post that follows walks through the implementation choices that make those three queries possible.
+
 ## Where the team already was
 
 Before this MR, the production observability stack looked like this:
@@ -85,6 +103,15 @@ Histogram buckets: `0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10` seconds. T
 
 Cardinality is bounded by design: 7 endpoints × 7 outcomes × 6 status codes is **294 series maximum** per counter. No `user_id` or `pengajuan_id` labels. Every label was chosen to answer an operational question, not for log-style filtering.
 
+![Raw /api/metrics endpoint output filtered to gbm_pengajuan_*, showing the three counters and histogram populated after a few sample requests](/images/monitoring-pengajuan-metrics-endpoint.png)
+<!-- HOW TO CAPTURE:
+  1. cd C:\PPL\be-gbm && python manage.py runserver 0.0.0.0:8000
+  2. In a second terminal, generate traffic: python scripts/smoke_pengajuan_metrics.py
+  3. Then: curl -s http://localhost:8000/api/metrics | grep gbm_pengajuan | head -40
+  4. Screenshot the terminal output (Win+Shift+S, drag region). On Windows Terminal/MINGW64 use a dark theme for legibility.
+  5. Save to C:\PPL\blog-husin\static\images\monitoring-pengajuan-metrics-endpoint.png
+-->
+
 ## Wiring it into the views
 
 The decorator is one line per endpoint, stacked beneath existing decorators (including `@silk_profile` on the guru-besar views, so request profiling continues alongside metric emission):
@@ -99,6 +126,43 @@ def gb_pengajuan_detail(request, pk):
 ```
 
 Seven endpoints, seven decorator additions, seven new imports. No business logic was rewritten. `try/except` blocks already inside handlers are preserved; the decorator wraps the outermost call, so success paths still return their `Response` and the metric is observed from the response status code.
+
+![Smoke test script output: before/after deltas for PENGAJUAN_SERVICE_REQUESTS_TOTAL and PENGAJUAN_SERVICE_EXCEPTIONS_TOTAL across five endpoints, with outcome labels printed alongside](/images/monitoring-pengajuan-smoke-output.png)
+<!-- HOW TO CAPTURE:
+  1. cd C:\PPL\be-gbm
+  2. python scripts/smoke_pengajuan_metrics.py
+  3. The script prints "BEFORE" counters, hits 5 endpoints with APIClient.force_authenticate, then prints "AFTER" counters with the delta.
+  4. Screenshot the full output (or the BEFORE+AFTER+DELTA blocks if it overflows your terminal).
+  5. Save to C:\PPL\blog-husin\static\images\monitoring-pengajuan-smoke-output.png
+-->
+
+## Scenario walkthrough: replaying a duplicate-submission spike
+
+To validate that the alerts above would actually fire, I reproduced the most likely production failure mode locally: a frontend retry loop on `ajukan_guru_besar` that hammers the endpoint with the same payload, each call returning 409 because the pengajuan already exists.
+
+Sequence:
+
+1. Start the full local stack: `docker compose -f docker-compose.monitoring.yml up -d` (Prometheus on `:9090`, Grafana on `:3000`).
+2. Run the smoke script with the duplicate flag (or hit the endpoint 30 times in a `for` loop with the same body).
+3. Open Prometheus at `http://localhost:9090` and run the request-rate query from the next section.
+
+The `business_error` line lifts off zero within one scrape interval (15 seconds). The `success` line stays flat. That separation is the entire reason `outcome` exists as a label.
+
+![Prometheus query result for sum by (endpoint, outcome) (rate(gbm_pengajuan_service_requests_total[5m])), with business_error spiking on ajukan_guru_besar while success stays flat](/images/monitoring-pengajuan-prometheus-spike.png)
+<!-- HOW TO CAPTURE:
+  1. With Prometheus + backend running, generate the spike:
+     for i in {1..30}; do curl -X POST http://localhost:8000/api/pengajuan/kaprodi/pengajuan/ \
+       -H "Authorization: Bearer <kaprodi_token>" \
+       -H "Content-Type: application/json" \
+       -d '{"guru_besar_id": "<existing_gb_uuid>", "alasan": "test", "periode_id": "<periode_uuid>"}'; done
+     (the second through 30th calls return 409 because the pengajuan already exists)
+  2. Open http://localhost:9090
+  3. Paste this query into the expression bar:
+     sum by (endpoint, outcome) (rate(gbm_pengajuan_service_requests_total[5m]))
+  4. Click "Execute", then switch to the "Graph" tab.
+  5. Wait ~30 seconds for two scrape intervals to render, then screenshot the graph (include the query bar and the legend showing endpoint/outcome labels).
+  6. Save to C:\PPL\blog-husin\static\images\monitoring-pengajuan-prometheus-spike.png
+-->
 
 ## Alerts and PromQL: the level-4 customization
 
@@ -142,6 +206,18 @@ histogram_quantile(
 ```
 
 Alert candidate: p95 above 1 second on a list endpoint, or above 2 seconds on a detail/update endpoint, sustained 5 minutes. These thresholds are intentionally generous to start; we will tighten after baseline.
+
+![Grafana panel rendering p95 latency per endpoint over a 30-minute window, with each endpoint as its own line and a horizontal threshold line at 1 second](/images/monitoring-pengajuan-grafana-p95.png)
+<!-- HOW TO CAPTURE:
+  1. Open Grafana at http://localhost:3000 (login admin/admin first run).
+  2. Create dashboard -> Add panel -> select Prometheus datasource.
+  3. Paste the p95 query:
+     histogram_quantile(0.95, sum by (le, endpoint) (rate(gbm_pengajuan_service_request_duration_seconds_bucket[5m])))
+  4. In panel options: set unit to "seconds (s)", legend format to "{{endpoint}}", add a threshold line at 1.0.
+  5. Generate 10-20 minutes of mixed traffic via the smoke script in a loop so the graph has multiple data points.
+  6. Apply -> screenshot the panel (include axis labels and legend).
+  7. Save to C:\PPL\blog-husin\static\images\monitoring-pengajuan-grafana-p95.png
+-->
 
 ### 4. Database-availability signal
 
