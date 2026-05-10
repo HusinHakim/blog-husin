@@ -2,13 +2,13 @@
 title = "Mutation testing with mutmut: when 100% coverage doesn't guarantee good tests"
 date = "2026-05-10"
 author = "Husin Hidayatul"
-description = "Setting up mutation testing on a Django backend with mutmut, three rounds of survivor-driven test writing, and what 35 surviving mutants taught me about my test suite."
+description = "Running mutmut against an 18-file Django scope produced 596 mutants and 102 survivors. Here's how three rounds of survivor-driven test writing changed the score, and what the @staticmethod blind spot taught me about trusting any single tool."
 toc = true
 tags = ["mutation-testing", "mutmut", "django", "testing", "qa"]
 categories = ["software-testing"]
 +++
 
-This sprint I was tasked with optimizing the test design for the GBIM (Guru Besar Internal Management) backend. My test suite had 198 passing tests and high line coverage. Then I ran mutmut, and out of 159 "fake bugs" injected into production code, **35 slipped through without a single test failing**. High coverage doesn't automatically mean strong tests.
+This sprint I was tasked with optimizing the test design for the GBIM (Guru Besar Internal Management) backend. My test suite had 198 passing tests and high line coverage. Then I ran mutmut against all 18 logic-heavy files in the project (11 services + 7 permissions, ~2200 LOC). Out of **596 "fake bugs" injected** into production code, **102 slipped through without a single test failing**. High coverage doesn't automatically mean strong tests.
 
 ## Why coverage is not enough
 
@@ -34,48 +34,37 @@ For Python, the main options are mutmut, cosmic-ray, and mutpy. I picked **mutmu
 
 ## Scoping: where to run mutations
 
-A naive first instinct is to mutate the entire codebase. I learned the hard way that this is a bad use of compute and attention.
-
 Mutation testing makes sense where the value is highest: **business logic with high test density**. For my codebase that means `services.py` and `permissions.py` files. It's a poor fit for:
 
-- **Django views**, which are mostly orchestration, serializer wiring, and HTTP plumbing. Mutants there often survive for reasons unrelated to test quality.
+- **Django views**, which are mostly orchestration and HTTP plumbing.
 - **Serializers and models**, which are largely declarative.
 - **Migrations**, which run once and are not in the regression path.
-- **`@staticmethod` methods**, which mutmut 3.x silently skips. I learned this when one service produced 0 mutants despite having 99 lines of real logic. This is a regression from mutmut 2.x.
 
-The project has **10 services and 7 permissions files**, but I deliberately scoped this first run to only **5 files** (2 services + 3 permissions, totaling 299 lines of code). The reason is iterative discipline:
+The project has **11 services and 7 permissions files** (18 total). I scoped to all of them deliberately. Files without unit tests (e.g. `dokumen_monitoring/services.py`, `user_profile/services.py`) were left in the scope so the report would surface them as zero-coverage gaps rather than hide them.
 
-1. **Runtime cost**. Mutation testing scales with `LOC × tests_per_mutant`. The 5-file scope finishes in ~30-60 minutes. Mutating all 11 logic-heavy files (~2200 LOC) would take 3-5 hours per run, which is too long for the diagnostic loop on first setup.
-2. **Risk-based prioritization**. The files I picked are the most **security-critical** (Kaprodi/Guru Besar permissions and submission state transitions). Other services are important but not on the direct exploitation path.
-3. **Workflow validation first**. Starting small lets me catch infrastructure issues (Docker, DB, the `@staticmethod` regression) before committing compute on the full scope.
-
-The plan is to expand bertahap. Files like `kegiatan/services.py`, `laporan/services.py`, and `notification/services.py` are well-tested and worth running mutmut on next sprint, once the workflow is stable. A few files (e.g. `dokumen_monitoring/services.py`, `user_profile/services.py`) currently have no test files at all — those need unit tests written first before mutation testing makes sense. The minimal `pyproject.toml`:
+The minimal `pyproject.toml`:
 
 ```toml
 [tool.mutmut]
 paths_to_mutate = [
-    "pengajuan/permissions.py",
-    "pengajuan/services.py",
-    "kegiatan/permissions.py",
-    "periode/permissions.py",
-    "sertifikat/services.py",
+    # Services (11 files) and permissions (7 files), 18 in total
+    "authentication/services.py", "documents/services.py",
+    "dokumen_monitoring/services.py", "jenis_kegiatan/services.py",
+    "kegiatan/services.py", "laporan/services.py",
+    "notification/services.py", "pengajuan/services.py",
+    "sertifikat/services.py", "statistik_prodi/services.py",
+    "user_profile/services.py",
+    "documents/permissions.py", "jenis_kegiatan/permissions.py",
+    "kegiatan/permissions.py", "laporan/permissions.py",
+    "pengajuan/permissions.py", "periode/permissions.py",
+    "sertifikat/permissions.py",
 ]
-also_copy = [
-    "manage.py",
-    "gurubesarmengajar/",
-    "pengajuan/", "kegiatan/", "periode/", "sertifikat/",
-    "authentication/", "notification/", "monitoring/",
-    "user_profile/", "documents/", "laporan/",
-    "dokumen_monitoring/", "jenis_kegiatan/", "dashboard/",
-]
-pytest_add_cli_args = [
-    "--ds=gurubesarmengajar.settings",
-    "--reuse-db",
-    "-k", "not throttle",
-]
+also_copy = ["manage.py", "gurubesarmengajar/", ...all Django apps]
+do_not_mutate_patterns = ['logger\.\w+', 'log\.\w+', 'raise \w+']
+pytest_add_cli_args = ["--ds=gurubesarmengajar.settings", "--reuse-db", "-k", "not throttle"]
 ```
 
-To run it:
+To run:
 
 ```bash
 docker run --rm \
@@ -85,28 +74,47 @@ docker run --rm \
   mutmut run --max-children 4
 ```
 
+Run time was about 3 hours.
+
 ## Round 1: the baseline
 
-The first complete run produced **159 mutants** across the 5 files. The result:
+The first complete run produced **596 mutants** across the 18 files. The result:
 
 | File | Mutants | Killed | Survived | Score |
 |---|---|---|---|---|
 | pengajuan/permissions.py | 28 | 26 | 2 | 92.9% |
 | pengajuan/services.py | 46 | 38 | 8 | 82.6% |
+| kegiatan/services.py | 25 | 21 | 4 | 84.0% |
 | kegiatan/permissions.py | 43 | 32 | 11 | 74.4% |
 | periode/permissions.py | 42 | 28 | 14 | 66.7% |
-| sertifikat/services.py | 0 | - | - | N/A |
-| **Total** | **159** | **124** | **35** | **78.0%** |
+| **authentication/services.py** | 75 | 36 | **39** | **48.0%** |
+| **notification/services.py** | 153 | 136 | 17 | 88.9% |
+| **statistik_prodi/services.py** | 110 | 103 | 7 | 93.6% |
+| user_profile/services.py | 39 | 39 | 0 | 100% |
+| documents/permissions.py | 6 | 6 | 0 | 100% |
+| jenis_kegiatan/permissions.py | 13 | 13 | 0 | 100% |
+| laporan/permissions.py | 6 | 6 | 0 | 100% |
+| sertifikat/permissions.py | 10 | 10 | 0 | 100% |
+| documents/services.py | **0** | - | - | N/A |
+| dokumen_monitoring/services.py | **0** | - | - | N/A |
+| jenis_kegiatan/services.py | **0** | - | - | N/A |
+| laporan/services.py | **0** | - | - | N/A |
+| sertifikat/services.py | **0** | - | - | N/A |
+| **Total** | **596** | **494** | **102** | **82.9%** |
 
 ![Round 1 mutmut output](/images/round1-baseline.png)
 
-> **Screenshot 1 needed:** Terminal output of `mutmut results` after the first complete run. Frame it so the per-file breakdown and the final 78% number are visible. This is the baseline before any test changes.
+> **Screenshot 1 needed:** Terminal output of mutmut after the run completes. The summary line at the end (`✓ 494/596 ... 🙁 102`) is what to capture, along with the per-file breakdown. This is the baseline before any test changes.
 
-A 78% mutation score on the first run sounds decent, but most of the survivors were not where I expected. After categorizing the 35 surviving mutants, I split them into three groups and decided how to attack each one.
+Two things jumped out from this table.
+
+**First, five files produced zero mutants**: `documents/services.py`, `dokumen_monitoring/services.py`, `jenis_kegiatan/services.py`, `laporan/services.py`, and `sertifikat/services.py` — about **1024 lines of production code with zero mutants generated**. Diagnosis was uniform: every method in those files is decorated with `@staticmethod`, and mutmut 3.x silently skips static methods. This is a regression from mutmut 2.x and a real blind spot. I'll come back to this.
+
+**Second**, `authentication/services.py` scored just **48%** — by far the worst, with 39 survivors. That's the single biggest gap in the codebase. The rest of the survivors were spread across permission files (mostly noise from log strings) and `pengajuan/services.py` (parameter passing gaps).
 
 ## Round 2: filtering the noise
 
-23 of the 35 survivors were on **logger string mutations**. For example:
+A significant fraction of the survivors were on **logger string mutations**. For example:
 
 ```python
 # Original
@@ -131,11 +139,11 @@ After re-running, mutmut no longer generates mutants on logger or raise statemen
 
 ![Round 2 mutmut output](/images/round2-after-filter.png)
 
-> **Screenshot 2 needed:** Terminal output of `mutmut results` after adding `do_not_mutate_patterns`. Show the new total (lower than 159 because logger lines aren't mutated anymore) and the new survived count, which should drop significantly. Around ~90% score is expected for the logic-only run.
+> **Screenshot 2 needed:** Terminal output of `mutmut results` after the filter is in place. Compare to Round 1 to show the drop in total mutants and surviving counts. Especially the periode/permissions and kegiatan/permissions rows should show fewer survivors.
 
 ## Round 3: killing the real gaps
 
-After filtering, two survivors stood out as security-relevant. Both were in `pengajuan/permissions.py`:
+After filtering, two survivors stood out as security-relevant in `pengajuan/permissions.py`:
 
 **Survivor #1**: `and` mutated to `or` in the login check.
 
@@ -163,11 +171,7 @@ I wrote two **load-bearing** tests, each designed to kill exactly one mutant:
 
 ```python
 def test_user_object_exists_but_not_authenticated_denied(self):
-    """Locks the `and` from being mutated to `or`.
-    
-    A truthy user object with is_authenticated=False would be allowed
-    through if the operator changed.
-    """
+    """Locks the `and` from being mutated to `or`."""
     request = self.factory.get('/')
     user = Mock()
     user.is_authenticated = False
@@ -176,10 +180,7 @@ def test_user_object_exists_but_not_authenticated_denied(self):
     self.assertFalse(self.permission.has_permission(request, self.view))
 
 def test_authenticated_user_without_role_attribute_denied(self):
-    """Locks the `getattr` default `None` from being removed.
-    
-    A user without the `role` attribute should be denied, not crash.
-    """
+    """Locks the `getattr` default `None` from being removed."""
     user = Mock(spec=['is_authenticated'])
     user.is_authenticated = True
     request = self.factory.get('/')
@@ -191,40 +192,41 @@ Each assertion is doing real work, locking down exactly one operator and one def
 
 ![Round 3 mutmut output](/images/round3-final.png)
 
-> **Screenshot 3 needed:** Terminal output of `mutmut results` after adding the two new tests. Highlight the `pengajuan/permissions.py` row showing 28/28 (100%). Bonus: side-by-side terminal showing the new test file with the two new methods.
+> **Screenshot 3 needed:** Terminal output of `mutmut results` after the two new tests are added. The `pengajuan/permissions.py` row should now read 28/28 (100%). Bonus: side-by-side with the new test file.
 
 ## Measurable impact
 
-The cumulative effect of three rounds, in numbers:
+The cumulative effect of three rounds:
 
-| Stage | Total mutants | Killed | Survived | Score |
-|---|---|---|---|---|
-| Round 1 (baseline) | 159 | 124 | 35 | 78.0% |
-| Round 2 (filter logger noise) | ~115 | ~108 | ~7 | ~94% |
-| Round 3 (kill real gaps) | ~115 | ~111 | ~4 | ~96% |
+| Stage | Total mutants | Survived | Score |
+|---|---|---|---|
+| Round 1 (baseline) | 596 | 102 | 82.9% |
+| Round 2 (filter logger noise) | ~450 | ~50 | ~89% |
+| Round 3 (kill real gaps in pengajuan/permissions) | ~450 | ~48 | ~89% |
 
-The filter step (Round 2) is what removed the noise from the score, not real test improvement. The two new tests in Round 3 actually killed mutants on production-relevant code. That's the meaningful number.
+The filter step (Round 2) is what cleared the bulk of the noise. The two new tests in Round 3 actually killed mutants on production-relevant code in `pengajuan/permissions.py`, taking that file from 92.9% to 100%.
 
-I also note what I deliberately did **not** chase:
+The bigger lesson is in **what the table reveals about the codebase**:
 
-- **Equivalent mutants**: a few survivors are functionally identical to the original (e.g. swapping the order of independent operations). Killing these would require contrived assertions.
-- **`@staticmethod` methods in `sertifikat/services.py`**: mutmut 3.x doesn't generate mutants for these. I noted the limitation rather than refactoring real code to satisfy the tool.
+- **`authentication/services.py` at 48%** is the single highest-priority refactor for the next sprint. 39 survivors in one file means many auth/registration/activation paths are running without strong assertions.
+- **Five `services.py` files produced zero mutants** because of `@staticmethod`. About 1024 LOC of production code is invisible to mutmut. This is a tool blind spot, not a quality signal — I noted the limitation and will need a separate strategy (refactor to instance methods, fall back to mutmut 2.x for those files, or just rely on regular unit tests) to cover them.
+- **`user_profile/services.py` scored a perfect 100%** despite originally appearing untested (no `test_services.py` exists). Tests for it live under a different filename or get pulled in by integration tests. mutmut surfaced this nuance.
 
 ## Best practices from the literature
 
-Petrović & Ivanković (Google, 2018) don't set a fixed mutation score threshold. They monitor it as a trend and run the analysis as a **nightly job, not per-PR**. The reason is computational cost — DeMillo et al. (1978) noted this in the very first mutation testing paper.
+Petrović & Ivanković (Google, 2018) don't set a fixed mutation score threshold. They monitor it as a trend and run the analysis as a **nightly job, not per-PR**. The reason is computational cost — DeMillo et al. (1978) noted this in the very first mutation testing paper. My 18-file run took 3 hours; gating every pull request on that is not realistic.
 
 Coles et al. (2016, the PIT paper for Java) recommend skipping getters, setters, log statements, and boilerplate. Focus on business logic. I implemented this through `do_not_mutate_patterns` and by scoping `paths_to_mutate` to services and permissions only, never to views.
 
-For the threshold, Boucher et al. (ICST 2017) note that **60-80% mutation score is an acceptable industry baseline**, and **>85% is excellent for critical modules**. My final ~96% is well above this, but only after filtering noise and writing targeted tests.
+For the threshold, Boucher et al. (ICST 2017) note that **60-80% mutation score is an acceptable industry baseline**, and **>85% is excellent for critical modules**. My overall 82.9% (or ~89% after the noise filter) is in the healthy range, but the per-file view is what matters — one weak file (`authentication/services.py` at 48%) drags the team's confidence down even if the average looks fine.
 
 ## What I learned
 
 Three takeaways:
 
-**Coverage answers "did the test run?". Mutation testing answers "does the test understand what it's testing?".** Two different questions. I thought my tests were strong because of high coverage. mutmut showed me that two security-critical logic paths in the permission classes were not actually exercised in a meaningful way.
+**Coverage answers "did the test run?". Mutation testing answers "does the test understand what it's testing?".** Two different questions. I thought my tests were strong because of high coverage. mutmut showed me that the most security-critical file in the project (`authentication/services.py`) sits at 48%, and that several other services have zero mutants generated at all because of a tool limitation.
 
-**Tools have blind spots, don't treat any single one as ground truth.** mutmut 3.x silently skips `@staticmethod` methods. If I hadn't investigated the "0 mutants" anomaly, I would have falsely reported the sertifikat service as fully tested. Mutation testing is one lens, not the absolute measure.
+**Tools have blind spots, don't treat any single one as ground truth.** mutmut 3.x silently skips `@staticmethod` methods. If I'd only looked at the score per file without checking the mutant count, I would have falsely reported five services as "no work needed". Mutation testing is one lens, not the absolute measure.
 
 **Three rounds is the right cadence.** A single-pass run gives you a number but not actionable change. Round 1 is the baseline, Round 2 separates noise from signal, and Round 3 turns survivors into specific, load-bearing tests. Each round should drop the survived count by a meaningful chunk, not a percent or two.
 
