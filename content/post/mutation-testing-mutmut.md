@@ -28,29 +28,43 @@ Mutation testing inverts this. The tool generates "mutants" of production code (
 
 Ammann & Offutt (Cambridge, 2017) describe mutation testing as the baseline for measuring **fault detection capability**, complementing coverage. Google has deployed it at scale for critical regression suites (Petrović & Ivanković, ICSE-SEIP 2018).
 
-## Setup
+## Tooling choice: mutmut
 
-I picked **mutmut 3.x** because it's actively maintained and integrates cleanly with pytest. It doesn't run natively on Windows, so I built a Docker image based on `python:3.11-slim`.
+I picked **mutmut 3.x** because it's actively maintained, has built-in parallelism via `--max-children`, and integrates cleanly with pytest. It doesn't run natively on Windows, so I built a Docker image based on `python:3.11-slim` and ran everything inside it.
 
-The project has **11 services and 7 permissions files**. I scoped to all 18 deliberately, including files without unit tests, so the report would surface them as zero-coverage gaps. Configuration in `pyproject.toml`:
+## Scoping: where to run mutations
+
+Mutation testing has the highest value where the test:code ratio is high and the logic is non-trivial. For my Django codebase that means `services.py` and `permissions.py` files. It is a poor fit for:
+
+- **Views**, which are mostly orchestration, serializer wiring, and HTTP plumbing. Mutants there often survive for reasons unrelated to test quality.
+- **Serializers and models**, which are largely declarative. Most mutations on them are trivial.
+- **Migrations**, which run once and never appear in the regression path.
+
+The project has **11 services and 7 permissions files** (18 total). I scoped to all 18 deliberately. Files without unit tests (e.g. `dokumen_monitoring/services.py`, `user_profile/services.py`) were left in scope so the report would surface them as zero-coverage gaps, rather than hide them.
+
+Configuration in `pyproject.toml`:
 
 ```toml
 [tool.mutmut]
-paths_to_mutate = [ ... 18 files: services + permissions ... ]
-also_copy = [ "manage.py", "gurubesarmengajar/", ...all Django apps ]
+paths_to_mutate = [
+    "authentication/services.py",
+    "documents/services.py",
+    # ... 9 more services
+    "pengajuan/permissions.py",
+    # ... 6 more permissions
+]
+also_copy = ["manage.py", "gurubesarmengajar/", "pengajuan/", ]  # plus all Django apps
 do_not_mutate_patterns = ['logger\.\w+', 'log\.\w+', 'raise \w+']
 pytest_add_cli_args = ["--ds=gurubesarmengajar.settings", "--reuse-db", "-k", "not throttle"]
 ```
 
-`do_not_mutate_patterns` excludes log statements upfront. Coles et al. (PIT, 2016) recommend skipping log/boilerplate to avoid test theater.
+`do_not_mutate_patterns` excludes log statements upfront. Coles et al. (PIT, 2016) recommend skipping log and boilerplate to avoid test theater.
 
 Run:
 ```bash
 docker run --rm -e DATABASE_URL='sqlite:///:memory:' \
   -v "$(pwd):/app" mutmut-gbm mutmut run --max-children 4
 ```
-
-Run time: about 3 hours.
 
 ## Round 1: the baseline
 
@@ -145,7 +159,7 @@ mutmut 3.5's trampoline binds the original function's default before forwarding 
 | pengajuan/services.py | 8 | 6 | 2 | 95.7% |
 | **Total in scope** | **21** | **16** | **5** | **97.6%** |
 
-Total time: about **4 hours** for 10 new tests across 3 commits. Four other files (kegiatan/permissions, periode/permissions, notification/services, authentication/services) still have unresolved survivors from Round 1, and they're the next iteration. The decision to defer them was deliberate: tackling heavy fixtures for JWT/email/transactional logic is the kind of work that benefits from breaking out of the survivor-killing flow.
+10 new tests landed across 3 commits. Four other files (kegiatan/permissions, periode/permissions, notification/services, authentication/services) still have unresolved survivors from Round 1, and they're the next iteration. The decision to defer them was deliberate: tackling heavy fixtures for JWT/email/transactional logic is the kind of work that benefits from breaking out of the survivor-killing flow.
 
 ## Measurable impact
 
@@ -156,26 +170,6 @@ Total time: about **4 hours** for 10 new tests across 3 commits. Four other file
 | Round 3 (load-bearing tests on 4 files) | 86 | 85.6% |
 
 The aggregate score moved modestly. The per-file picture is what matters: two security-critical files are at 100%, two more above 95% with equivalent mutants documented.
-
-## Future plan: CI/CD integration
-
-Mutation testing won't gate every MR. The 18-file run takes 3 hours, which is too slow for per-PR. The hybrid plan:
-
-1. **Per-MR pipeline stays fast**: only lint, pytest, SonarQube coverage gate.
-2. **Manual trigger from GitLab UI** for security-sensitive changes (`when: manual` in `.gitlab-ci.yml`).
-3. **Weekly scheduled pipeline** every Monday at 02:00: full run, 30-day artifact.
-
-```yaml
-mutation_testing:
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "web"
-      when: manual
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-  timeout: 6h
-  allow_failure: true
-```
-
-`allow_failure: true` is intentional. Survivors are a discussion topic, not a build break, until I add per-file score gates later.
 
 ## What I learned
 
