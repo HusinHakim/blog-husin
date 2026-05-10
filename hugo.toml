@@ -1,0 +1,71 @@
+# baseURL akan di-override Vercel saat deploy via env HUGO_BASEURL
+# Untuk lokal, hugo server akan auto-pakai http://localhost:1313/
+baseURL = "https://husinhidayatul.vercel.app/"
+theme = "risotto"
+title = "~/husinhidayatul"
+author = "Husin Hidayatul"
+copyright = "© 2026 Husin Hidayatul"
+locale = "id-id"
+DefaultContentLanguage = "id"
+enableInlineShortcodes = true
+
+# Tidak pakai sectionPagesMenu, menu manual di [menu.main] saja
+
+[pagination]
+pagerSize = 20
+
+[params]
+noindex = false
+
+[params.theme]
+palette = "solarized-light"
+
+[params.about]
+title = "~/husinhidayatul"
+description = "Catatan teknis seputar software engineering, testing, dan pengalaman ngoding di sprint."
+
+# Footer links (Daffa-style: portfolio, LinkedIn)
+[[params.footerLinks]]
+name = "Portfolio"
+url = "https://husin-portfolio.example.com/"
+
+[[params.footerLinks]]
+name = "LinkedIn"
+url = "https://www.linkedin.com/in/"
+
+[[params.footerLinks]]
+name = "GitHub"
+url = "https://github.com/"
+
+[menu]
+
+  [[menu.main]]
+    identifier = "about"
+    name = "About"
+    url = "/about/"
+    weight = 10
+
+  [[menu.main]]
+    identifier = "posts"
+    name = "Posts"
+    url = "/post/"
+    weight = 20
+
+[taxonomies]
+category = "categories"
+tag = "tags"
+
+[markup.goldmark.renderer]
+unsafe = true
+
+[markup]
+  [markup.tableOfContents]
+    startLevel = 2
+    endLevel   = 3
+    ordered    = false
+  [markup.highlight]
+    noClasses = true              # inline styles, otomatis warna sesuai style
+    codeFences = true
+    guessSyntax = true
+    style = "github"              # GitHub-style, paling familiar
+    tabWidth = 4

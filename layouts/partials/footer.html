@@ -1,0 +1,9 @@
+<div class="footer-inner">
+    <span class="footer-copy">{{ .Site.Copyright | markdownify }}</span>
+    {{ with .Site.Params.footerLinks }}
+        {{ range . }}
+            <span class="footer-sep">|</span>
+            <a href="{{ .url }}" class="footer-link">{{ .name }}</a>
+        {{ end }}
+    {{ end }}
+</div>

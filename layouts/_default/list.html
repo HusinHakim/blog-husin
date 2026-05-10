@@ -1,0 +1,17 @@
+{{ define "main" }}
+<section class="list">
+    <h1 class="list__title">{{ .Title | markdownify }}</h1>
+    {{ with .Content }}<div class="list__intro">{{ . }}</div>{{ end }}
+
+    <ul class="list__items">
+    {{ range (.Paginator).Pages }}
+        <li class="list__item">
+            <a href="{{ .RelPermalink }}" class="list__item-title">{{ .Title }}</a>
+            <time class="list__item-date">{{ .Date.Format "Jan 02, 2006" }}</time>
+        </li>
+    {{ end }}
+    </ul>
+
+    {{ template "_internal/pagination.html" . }}
+</section>
+{{ end }}

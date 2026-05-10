@@ -1,0 +1,29 @@
+{{ define "main" }}
+<article class="post">
+    <header class="post__header">
+        <h1 class="post__title">{{ .Title | markdownify }}</h1>
+        <div class="post__meta">
+            <time class="post__date">{{ .Date.Format "Jan 02, 2006" }}</time>
+            {{ with .Params.tags }}
+                <ul class="post__tags">
+                {{ range . }}
+                    <li><a href="{{ "/tags/" | relURL }}{{ . | urlize }}/">{{ . }}</a></li>
+                {{ end }}
+                </ul>
+            {{ end }}
+        </div>
+    </header>
+
+    <div class="post__layout">
+        {{ if and (.Params.toc) (.TableOfContents) }}
+        <aside class="post__toc">
+            {{ .TableOfContents }}
+        </aside>
+        {{ end }}
+
+        <div class="post__content">
+            {{ .Content }}
+        </div>
+    </div>
+</article>
+{{ end }}

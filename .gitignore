@@ -1,0 +1,13 @@
+# Hugo build output
+/public/
+/resources/
+/.hugo_build.lock
+
+# Screenshots untuk QA visual
+/screenshots/
+
+# Editor & OS
+.DS_Store
+Thumbs.db
+*.log
+*.pid

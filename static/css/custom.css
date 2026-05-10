@@ -1,0 +1,551 @@
+/* ==========================================================================
+ * Daffa Abhipraya-style override on top of Risotto.
+ * Ditulis ulang penuh dari pengamatan blog.abhipraya.dev.
+ * ========================================================================== */
+
+/* --- Fonts: Ubuntu + Ubuntu Mono dari Google Fonts ------------------------ */
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Ubuntu+Mono:wght@400;700&display=swap');
+
+/* --- Color tokens (Solarized) -------------------------------------------- */
+:root {
+  --bg-primary:    #fdf6e3;   /* Solarized base3 (cream) */
+  --bg-secondary:  #eee8d5;   /* Solarized base2 (slightly darker cream) */
+  --bg-code:       #eee8d5;
+  --text-primary:  #586e75;   /* Solarized base01 */
+  --text-bold:     #073642;   /* Solarized base02 */
+  --text-muted:    #93a1a1;   /* Solarized base1 */
+  --accent:        #268bd2;   /* Solarized blue */
+  --accent-hover:  #2076b8;
+  --border:        #93a1a1;
+  --brand-bg:      #073642;
+  --brand-fg:      #fdf6e3;
+
+  /* Override Risotto's inner-bg (yang default ke base02 = abu medium) */
+  --inner-bg:      #eee8d5 !important;
+  --off-fg:        #586e75 !important;
+  --off-bg:        #eee8d5 !important;
+}
+
+/* --- Reset Risotto's grid layout ----------------------------------------- */
+html, body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Ubuntu', system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+
+/* Risotto's `.page` grid - reset to single column flow */
+.page,
+.site,
+body > .page {
+  display: block !important;
+  grid-template-columns: none !important;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Hide Risotto's bio sidebar (page__aside, page__header from theme) */
+.page__aside, .aside__about, .aside__content,
+.page__header > nav.main-nav,
+.page__footer { display: none !important; }
+
+/* --- Top navigation (Daffa style) ----------------------------------------- */
+.site__header {
+  width: 100%;
+  padding: 1.2rem 1.5rem;
+  background: transparent;
+}
+
+.topnav {
+  max-width: 56rem;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.topnav .brand {
+  display: inline-block;
+  padding: 0.45rem 1rem;
+  background: var(--brand-bg);
+  color: var(--brand-fg);
+  font-family: 'Ubuntu Mono', monospace;
+  font-weight: 700;
+  font-size: 1.25rem;
+  text-decoration: none;
+  border: none;
+  border-radius: 0;
+  letter-spacing: -0.01em;
+}
+
+.topnav .brand:hover {
+  background: var(--text-bold);
+  border-bottom: none;
+}
+
+.topnav .nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: 'Ubuntu', sans-serif;
+  font-size: 1rem;
+}
+
+.topnav .nav-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  border-bottom: none;
+}
+
+.topnav .nav-link:hover {
+  color: var(--accent);
+}
+
+.topnav .nav-sep {
+  color: var(--text-muted);
+}
+
+/* Daffa style: trailing `/` after last nav item tetap tampak */
+
+.topnav__hr {
+  max-width: 56rem;
+  margin: 0.6rem auto 0;
+  border: none;
+  border-top: 1px solid var(--bg-secondary);
+}
+
+/* --- Main content layout -------------------------------------------------- */
+.site__main {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2.5rem 2rem 4rem;
+}
+
+@media (max-width: 768px) {
+  .site__main {
+    padding: 1.5rem 1.25rem 3rem;
+  }
+}
+
+/* --- Home page ------------------------------------------------------------ */
+.home__about {
+  margin-bottom: 2.5rem;
+}
+
+.home__about h1 {
+  font-size: 1.6rem;
+  margin: 0 0 0.5rem 0;
+  color: var(--text-bold);
+}
+
+.home__about p {
+  color: var(--text-primary);
+  font-size: 1rem;
+  max-width: 36rem;
+}
+
+.home__posts-title {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 2rem 0 0.8rem 0;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* --- Post list (home & /post/) ------------------------------------------- */
+.list__title {
+  font-size: 1.6rem;
+  margin: 0 0 1.5rem 0;
+  color: var(--text-bold);
+}
+
+.list__intro {
+  margin-bottom: 1.5rem;
+  color: var(--text-muted);
+}
+
+.list__items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.55rem 0;
+  border-bottom: 1px dashed var(--bg-secondary);
+  gap: 1rem;
+}
+
+.list__item:last-child {
+  border-bottom: none;
+}
+
+.list__item-title {
+  color: var(--text-primary);
+  text-decoration: none;
+  border-bottom: none;
+  flex: 1;
+  font-size: 0.98rem;
+}
+
+.list__item-title:hover {
+  color: var(--accent);
+}
+
+.list__item-date {
+  color: var(--text-muted);
+  font-family: 'Ubuntu Mono', monospace;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+/* --- Single post --------------------------------------------------------- */
+.post__header {
+  margin-bottom: 1.5rem;
+}
+
+.post__title {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 0.6rem 0;
+  color: var(--text-bold);
+}
+
+.post__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.post__date {
+  font-family: 'Ubuntu Mono', monospace;
+}
+
+.post__tags,
+.list__items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.post__tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* Risotto inject `∗` marker via ::marker pseudo, kita reset */
+.post__tags li::marker,
+.list__items li::marker,
+.post__content ul > li::marker {
+  content: none !important;
+}
+
+/* Untuk list di body post (bullet biasa), kembalikan disc */
+.post__content ul > li::marker {
+  content: '\2022 \00A0' !important;   /* bullet • */
+  color: var(--text-muted);
+}
+
+.post__tags li a {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: 'Ubuntu Mono', monospace;
+  font-size: 0.78rem;
+  text-decoration: none;
+  border: none;
+  border-radius: 0.2rem;
+}
+
+.post__tags li a::before {
+  content: "#";
+  opacity: 0.6;
+}
+
+.post__tags li a:hover {
+  background: var(--border);
+  color: var(--bg-primary);
+}
+
+/* Post content layout: TOC sidebar di kiri (kalau ada), content di tengah */
+.post__layout {
+  display: block;
+}
+
+.post__content {
+  max-width: 100%;
+  font-size: 1rem;
+}
+
+@media (min-width: 1100px) {
+  .post__layout {
+    position: relative;
+  }
+  /* TOC fixed, vertically centered, dekat kiri konten + garis vertikal kiri */
+  .post__toc {
+    position: fixed;
+    top: 50%;
+    /* Posisi TOC right edge ~3rem dari left edge konten (yang centered max-width 48rem) */
+    right: calc(50% + 27rem);
+    transform: translateY(-50%);
+    width: clamp(9rem, 13vw, 12rem);
+    max-height: 75vh;
+    overflow-y: auto;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--text-muted);
+    /* Garis vertikal di kiri, opacity rendah biar subtle */
+    border-left: 1px solid rgba(147, 161, 161, 0.25);
+    padding-left: 1rem;
+    /* hide scrollbar */
+    scrollbar-width: none;
+  }
+  .post__toc::-webkit-scrollbar { display: none; }
+
+  .post__toc nav ul,
+  .post__toc ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+  }
+  .post__toc nav ul ul,
+  .post__toc ul ul {
+    padding-left: 0.85rem;
+    margin-top: 0.15rem;
+    margin-bottom: 0.3rem;
+  }
+  /* Top-level items: larger, sedikit lebih tegas */
+  .post__toc > nav > ul > li,
+  .post__toc > ul > li {
+    margin: 0.55rem 0;
+    font-size: 0.92rem;
+  }
+  /* Sub-level items: lebih kecil, muted */
+  .post__toc nav ul ul li,
+  .post__toc ul ul li {
+    margin: 0.18rem 0;
+    font-size: 0.8rem;
+  }
+  .post__toc a {
+    color: var(--text-muted);
+    text-decoration: none;
+    border-bottom: none;
+    display: block;
+    padding: 0.05rem 0;
+  }
+  .post__toc a:hover {
+    color: var(--accent);
+  }
+  /* Item pertama: highlight active state default */
+  .post__toc > nav > ul > li:first-child > a,
+  .post__toc > ul > li:first-child > a {
+    color: var(--accent);
+  }
+  /* Reset marker untuk TOC */
+  .post__toc li::marker {
+    content: none !important;
+  }
+}
+
+/* --- Typography (override Risotto's terminal aesthetic) ------------------ */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Ubuntu', system-ui, sans-serif;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-bold);
+  margin: 1.8rem 0 0.6rem 0;
+}
+
+h1::before, h2::before, h3::before,
+h4::before, h5::before, h6::before {
+  content: none !important;
+}
+
+h1 { font-size: 1.75rem; }
+h2 { font-size: 1.4rem; }
+h3 { font-size: 1.15rem; }
+h4 { font-size: 1.02rem; }
+h5, h6 { font-size: 0.95rem; }
+
+.post__content h2 {
+  margin-top: 2rem;
+  padding-top: 0.5rem;
+}
+
+p {
+  margin: 0 0 1rem 0;
+}
+
+strong, b {
+  color: var(--text-bold);
+  font-weight: 700;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+
+a:hover {
+  color: var(--accent-hover);
+  border-bottom-style: solid;
+}
+
+/* --- Code blocks ---------------------------------------------------------- */
+code, pre, kbd, samp {
+  font-family: 'Ubuntu Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
+/* Override Risotto's `code, kbd, samp { background: var(--inner-bg) !important; }` */
+p code, li code, td code,
+:not(pre) > code {
+  background: var(--bg-code) !important;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.2rem;
+  font-size: 0.86em;
+  color: var(--text-bold) !important;
+  font-weight: 400;
+}
+
+pre {
+  background: var(--bg-code) !important;
+  border: 1px solid #ddd6c1;
+  border-radius: 0.3rem;
+  padding: 0.85rem 1.1rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  margin: 1rem 0;
+}
+
+/* Untuk pre > code, BIARKAN warna dari Chroma inline styles (jangan force) */
+pre code {
+  background: transparent !important;
+  padding: 0;
+  font-size: inherit;
+  /* color tidak di-set, biar Chroma inline span yang menentukan */
+}
+
+/* Risotto inject `color: var(--off-fg)` di code/pre - kita longgarkan */
+pre, pre code, pre code span {
+  color: inherit;
+}
+
+/* --- Blockquote ----------------------------------------------------------- */
+blockquote {
+  border-left: 4px solid var(--accent);
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+blockquote::before {
+  content: none;
+}
+
+blockquote p { margin: 0.4rem 0; }
+
+/* --- Tabel ---------------------------------------------------------------- */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1.2rem 0;
+  font-size: 0.94rem;
+}
+
+table th, table td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+table th {
+  background: var(--bg-secondary);
+  font-weight: 700;
+  color: var(--text-bold);
+}
+
+/* --- HR ------------------------------------------------------------------- */
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+/* Risotto bikin hr::after { content: '---' }, kita matikan */
+hr::after,
+hr::before {
+  content: none !important;
+}
+
+/* --- Footer --------------------------------------------------------------- */
+.site__footer {
+  width: 100%;
+  padding: 2rem 1.5rem 2.5rem;
+  margin-top: 3rem;
+  border-top: 1px solid var(--bg-secondary);
+}
+
+.footer-inner {
+  max-width: 56rem;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.footer-copy {
+  font-family: 'Ubuntu Mono', monospace;
+}
+
+.footer-sep {
+  color: var(--text-muted);
+}
+
+.footer-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+
+.footer-link:hover {
+  color: var(--accent);
+  border-bottom-style: solid;
+}
+
+/* --- Responsive ----------------------------------------------------------- */
+@media (max-width: 768px) {
+  .topnav {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+  .post__title {
+    font-size: 1.5rem;
+  }
+  .post__toc {
+    display: none;
+  }
+}
