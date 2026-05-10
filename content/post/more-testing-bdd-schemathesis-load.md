@@ -1,6 +1,6 @@
 +++
 title = "Beyond unit tests for a Django feature: BDD, API schema fuzzing, and load test gating"
-date = "2026-05-11"
+date = "2026-05-11T05:00:00+07:00"
 author = "Husin Hidayatul"
 description = "Unit test answers 'does this function return the right value'. It does not catch endpoints that lie about their schema, status transitions that drift from product intent, or merges that silently double p95 latency. Here is how I added BDD, Schemathesis, and a Locust gating threshold to the Pengajuan feature of our Django backend."
 toc = true
