@@ -159,7 +159,9 @@ mutmut 3.5's trampoline binds the original function's default before forwarding 
 | pengajuan/services.py | 8 | 6 | 2 | 95.7% |
 | **Total in scope** | **21** | **16** | **5** | **97.6%** |
 
-10 new tests landed across 3 commits. Four other files (kegiatan/permissions, periode/permissions, notification/services, authentication/services) still have unresolved survivors from Round 1, and they're the next iteration. The decision to defer them was deliberate: tackling heavy fixtures for JWT/email/transactional logic is the kind of work that benefits from breaking out of the survivor-killing flow.
+10 new tests landed across 3 commits. Four other files (kegiatan/permissions, periode/permissions, notification/services, authentication/services) still have unresolved survivors from Round 1, and they're the next iteration.
+
+The decision to defer them was deliberate, and there's a specific timing reason. **Profiling and the associated optimization work is scheduled at the end of this sprint**, and the files most likely to get touched by that work are exactly the heavier services (notification, authentication, kegiatan/permissions). Writing load-bearing tests on those files now, then having the production code change underneath during optimization, would invalidate the assertions and waste the effort. The plan is to come back to them once the optimization is merged, then run mutmut on the updated code.
 
 ## Measurable impact
 
