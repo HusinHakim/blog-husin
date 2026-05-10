@@ -24,7 +24,7 @@ def test_is_eligible():
 
 100% coverage. Yet a bug like `>=` mutated to `>` or `<` would pass the test silently.
 
-Mutation testing inverts this. The tool generates "mutants" of production code (e.g. `==` → `!=`, `and` → `or`, `True` → `False`) and reruns the tests for each one. If a test fails, the mutant is **killed**. If tests still pass, the mutant **survives** — that's a gap in your assertions. **Mutation score = killed / total**.
+Mutation testing inverts this. The tool generates "mutants" of production code (e.g. `==` → `!=`, `and` → `or`, `True` → `False`) and reruns the tests for each one. If a test fails, the mutant is **killed**. If tests still pass, the mutant **survives**, which signals a gap in your assertions. **Mutation score = killed / total**.
 
 Ammann & Offutt (Cambridge, 2017) describe mutation testing as the baseline for measuring **fault detection capability**, complementing coverage. Google has deployed it at scale for critical regression suites (Petrović & Ivanković, ICSE-SEIP 2018).
 
@@ -42,7 +42,7 @@ do_not_mutate_patterns = ['logger\.\w+', 'log\.\w+', 'raise \w+']
 pytest_add_cli_args = ["--ds=gurubesarmengajar.settings", "--reuse-db", "-k", "not throttle"]
 ```
 
-`do_not_mutate_patterns` excludes log statements upfront — Coles et al. (PIT, 2016) recommend skipping log/boilerplate to avoid test theater.
+`do_not_mutate_patterns` excludes log statements upfront. Coles et al. (PIT, 2016) recommend skipping log/boilerplate to avoid test theater.
 
 Run:
 ```bash
@@ -60,7 +60,7 @@ Two findings jumped out:
 
 **First, 102 mutants survived** across 8 files. The worst was `authentication/services.py` at 48% (39 survivors). Permission files had moderate counts (kegiatan 11, periode 14). The rest were small clusters in `pengajuan`, `notification`, and `statistik_prodi`.
 
-**Second, five files produced *zero* mutants**: `documents/services.py`, `dokumen_monitoring/services.py`, `jenis_kegiatan/services.py`, `laporan/services.py`, `sertifikat/services.py`. About **1024 lines of production code that mutmut effectively did not analyze**. That's not a 100% score — it's a blind spot. Something needed investigation before I trusted the rest of the report.
+**Second, five files produced *zero* mutants**: `documents/services.py`, `dokumen_monitoring/services.py`, `jenis_kegiatan/services.py`, `laporan/services.py`, `sertifikat/services.py`. About **1024 lines of production code that mutmut effectively did not analyze**. That's not a 100% score, it's a blind spot. Something needed investigation before I trusted the rest of the report.
 
 ## Round 2: investigating the N/A anomaly
 
@@ -68,13 +68,13 @@ I checked what the five `N/A` files have in common:
 
 ![Static method evidence](/images/round2-staticmethod-evidence.png)
 
-Every one of them uses `@staticmethod` heavily. The control file `pengajuan/services.py` has zero `@staticmethod` and produced 46 mutants normally. To confirm, I checked an old `.mutmut-cache` from mutmut 2.x on the same `sertifikat/services.py` — that one had 19 mutants and 18 of them killed. **mutmut 3.x silently skips `@staticmethod` methods**. This is a known regression from 2.x.
+Every one of them uses `@staticmethod` heavily. The control file `pengajuan/services.py` has zero `@staticmethod` and produced 46 mutants normally. To confirm, I checked an old `.mutmut-cache` from mutmut 2.x on the same `sertifikat/services.py`. That one had 19 mutants and 18 of them killed. **mutmut 3.x silently skips `@staticmethod` methods**. This is a known regression from 2.x.
 
 About 1024 LOC of production code is **invisible to my current setup**. My options:
 
-1. Refactor `@staticmethod` to instance methods — multi-day refactor, touches every caller.
-2. Run mutmut 2.x for these files — adds CI complexity, plus 2.x has its own compat issues.
-3. Accept the limitation, document it, lean on regular unit tests — pragmatic.
+1. Refactor `@staticmethod` to instance methods. Multi-day refactor, touches every caller.
+2. Run mutmut 2.x for these files. Adds CI complexity, plus 2.x has its own compat issues.
+3. Accept the limitation, document it, lean on regular unit tests. Pragmatic.
 
 I went with option 3 for this sprint, with the addition of a CI rule that requires test updates whenever any of the five files is modified. The gap is acknowledged, not hidden.
 
@@ -124,11 +124,11 @@ After re-running: 28/28 mutants killed, **100%**.
 
 ### Equivalent mutants
 
-Five of the 21 survivors turned out to be **equivalent mutants** — mutations whose behavior is indistinguishable from the original. They all involve **signature default values**:
+Five of the 21 survivors turned out to be **equivalent mutants**, mutations whose behavior is indistinguishable from the original. They all involve **signature default values**:
 
 ```python
 order: str = "desc"      # original
-order: str = "XXdescXX"  # mutant — never observable
+order: str = "XXdescXX"  # mutant, never observable
 ```
 
 mutmut 3.5's trampoline binds the original function's default before forwarding `args=[order]` to the mutant. The mutated default is overwritten before it ever takes effect. Killing these would require contrived assertions that don't reflect product behavior, so I left them alive and documented them in commit messages.
@@ -145,7 +145,7 @@ mutmut 3.5's trampoline binds the original function's default before forwarding 
 | pengajuan/services.py | 8 | 6 | 2 | 95.7% |
 | **Total in scope** | **21** | **16** | **5** | **97.6%** |
 
-Total time: about **4 hours** for 10 new tests across 3 commits. Four other files (kegiatan/permissions, periode/permissions, notification/services, authentication/services) still have unresolved survivors from Round 1 — they're the next iteration. The decision to defer them was deliberate: tackling heavy fixtures for JWT/email/transactional logic is the kind of work that benefits from breaking out of the survivor-killing flow.
+Total time: about **4 hours** for 10 new tests across 3 commits. Four other files (kegiatan/permissions, periode/permissions, notification/services, authentication/services) still have unresolved survivors from Round 1, and they're the next iteration. The decision to defer them was deliberate: tackling heavy fixtures for JWT/email/transactional logic is the kind of work that benefits from breaking out of the survivor-killing flow.
 
 ## Measurable impact
 
@@ -159,11 +159,11 @@ The aggregate score moved modestly. The per-file picture is what matters: two se
 
 ## Future plan: CI/CD integration
 
-Mutation testing won't gate every MR — the 18-file run takes 3 hours, which is too slow for per-PR. The hybrid plan:
+Mutation testing won't gate every MR. The 18-file run takes 3 hours, which is too slow for per-PR. The hybrid plan:
 
-1. **Per-MR pipeline stays fast** — only lint, pytest, SonarQube coverage gate.
+1. **Per-MR pipeline stays fast**: only lint, pytest, SonarQube coverage gate.
 2. **Manual trigger from GitLab UI** for security-sensitive changes (`when: manual` in `.gitlab-ci.yml`).
-3. **Weekly scheduled pipeline** every Monday at 02:00 — full run, 30-day artifact.
+3. **Weekly scheduled pipeline** every Monday at 02:00: full run, 30-day artifact.
 
 ```yaml
 mutation_testing:
@@ -175,7 +175,7 @@ mutation_testing:
   allow_failure: true
 ```
 
-`allow_failure: true` is intentional — survivors are a discussion topic, not a build break, until I add per-file score gates later.
+`allow_failure: true` is intentional. Survivors are a discussion topic, not a build break, until I add per-file score gates later.
 
 ## What I learned
 
