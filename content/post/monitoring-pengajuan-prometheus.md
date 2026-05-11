@@ -11,12 +11,6 @@ categories = ["platform-monitoring"]
 Our backend already ships with Sentry for error capture and Sentry Session Replay for client-side breadcrumbs. Both are excellent at one thing: telling you *what broke* after the fact. Neither answers the operational question that wakes a maintainer at 3 AM: **is the pengajuan API healthy right now, and which endpoint is misbehaving?** This sprint I instrumented all 7 endpoints of the `pengajuan` feature with custom Prometheus metrics, defined business-meaningful outcome labels, and wrote the PromQL queries that will power our alert rules. Total diff: 8 files, 540 added lines, zero deletions.
 
 ![Architecture diagram: request flow from browser through Django decorator into metrics.py, exposed at /api/metrics, scraped by Prometheus, visualized in Grafana, and routed to alerts](/images/monitoring-pengajuan-architecture.png)
-<!-- HOW TO CAPTURE:
-  Open https://excalidraw.com (free, no signup). Draw a left-to-right diagram with these nodes connected by arrows:
-  [Browser/Client] -> [Django view + @handle_pengajuan_service_exceptions] -> [metrics.py Counter/Histogram] -> [GET /api/metrics] -> [Prometheus (scrape every 15s)] -> [Grafana panels] -> [Alertmanager -> Discord/email].
-  Label the arrow between view and metrics.py "observe()" and the arrow from Prometheus to Grafana "datasource".
-  Export -> PNG with background, save to C:\PPL\blog-husin\static\images\monitoring-pengajuan-architecture.png
--->
 
 ## What this monitoring is designed to surface
 
@@ -134,21 +128,7 @@ Sequence:
 
 The `business_error` line lifts off zero within one scrape interval (15 seconds). The `success` line stays flat. That separation is the entire reason `outcome` exists as a label.
 
-![Prometheus query result for sum by (endpoint, outcome) (rate(gbm_pengajuan_service_requests_total[5m])), with business_error spiking on ajukan_guru_besar while success stays flat](/images/monitoring-pengajuan-prometheus-spike.png)
-<!-- HOW TO CAPTURE:
-  1. With Prometheus + backend running, generate the spike:
-     for i in {1..30}; do curl -X POST http://localhost:8000/api/pengajuan/kaprodi/pengajuan/ \
-       -H "Authorization: Bearer <kaprodi_token>" \
-       -H "Content-Type: application/json" \
-       -d '{"guru_besar_id": "<existing_gb_uuid>", "alasan": "test", "periode_id": "<periode_uuid>"}'; done
-     (the second through 30th calls return 409 because the pengajuan already exists)
-  2. Open http://localhost:9090
-  3. Paste this query into the expression bar:
-     sum by (endpoint, outcome) (rate(gbm_pengajuan_service_requests_total[5m]))
-  4. Click "Execute", then switch to the "Graph" tab.
-  5. Wait ~30 seconds for two scrape intervals to render, then screenshot the graph (include the query bar and the legend showing endpoint/outcome labels).
-  6. Save to C:\PPL\blog-husin\static\images\monitoring-pengajuan-prometheus-spike.png
--->
+![Prometheus query result for sum by (endpoint, outcome) (rate(gbm_pengajuan_service_requests_total[5m])) showing four series climbing as traffic ramps up: admin_pengajuan_list-success at ~0.94, list_pengajuan_kaprodi-success at ~0.78, daftar_guru_besar-success at ~0.62, and gb_pengajuan_detail-not_found at ~0.23](/images/monitoring-pengajuan-prometheus-spike.png)
 
 ## Alerts and PromQL: the level-4 customization
 
@@ -193,17 +173,7 @@ histogram_quantile(
 
 Alert candidate: p95 above 1 second on a list endpoint, or above 2 seconds on a detail/update endpoint, sustained 5 minutes. These thresholds are intentionally generous to start; we will tighten after baseline.
 
-![Grafana panel rendering p95 latency per endpoint over a 30-minute window, with each endpoint as its own line and a horizontal threshold line at 1 second](/images/monitoring-pengajuan-grafana-p95.png)
-<!-- HOW TO CAPTURE:
-  1. Open Grafana at http://localhost:3000 (login admin/admin first run).
-  2. Create dashboard -> Add panel -> select Prometheus datasource.
-  3. Paste the p95 query:
-     histogram_quantile(0.95, sum by (le, endpoint) (rate(gbm_pengajuan_service_request_duration_seconds_bucket[5m])))
-  4. In panel options: set unit to "seconds (s)", legend format to "{{endpoint}}", add a threshold line at 1.0.
-  5. Generate 10-20 minutes of mixed traffic via the smoke script in a loop so the graph has multiple data points.
-  6. Apply -> screenshot the panel (include axis labels and legend).
-  7. Save to C:\PPL\blog-husin\static\images\monitoring-pengajuan-grafana-p95.png
--->
+![Provisioned Grafana panel "Pengajuan p95 latency per endpoint" in kiosk view, rendering three endpoints (admin_pengajuan_list, daftar_guru_besar, gb_pengajuan_detail) with Last and Max columns in the right legend. Local dev traffic is light, so p95 sits uniformly around 9.5 ms — three orders of magnitude below the 1-second alert threshold](/images/monitoring-pengajuan-grafana-p95.png)
 
 ### 4. Database-availability signal
 
