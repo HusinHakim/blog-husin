@@ -104,13 +104,6 @@ Histogram buckets: `0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10` seconds. T
 Cardinality is bounded by design: 7 endpoints × 7 outcomes × 6 status codes is **294 series maximum** per counter. No `user_id` or `pengajuan_id` labels. Every label was chosen to answer an operational question, not for log-style filtering.
 
 ![Raw /api/metrics endpoint output filtered to gbm_pengajuan_*, showing the three counters and histogram populated after a few sample requests](/images/monitoring-pengajuan-metrics-endpoint.png)
-<!-- HOW TO CAPTURE:
-  1. cd C:\PPL\be-gbm && python manage.py runserver 0.0.0.0:8000
-  2. In a second terminal, generate traffic: python scripts/smoke_pengajuan_metrics.py
-  3. Then: curl -s http://localhost:8000/api/metrics | grep gbm_pengajuan | head -40
-  4. Screenshot the terminal output (Win+Shift+S, drag region). On Windows Terminal/MINGW64 use a dark theme for legibility.
-  5. Save to C:\PPL\blog-husin\static\images\monitoring-pengajuan-metrics-endpoint.png
--->
 
 ## Wiring it into the views
 
@@ -127,14 +120,7 @@ def gb_pengajuan_detail(request, pk):
 
 Seven endpoints, seven decorator additions, seven new imports. No business logic was rewritten. `try/except` blocks already inside handlers are preserved; the decorator wraps the outermost call, so success paths still return their `Response` and the metric is observed from the response status code.
 
-![Smoke test script output: before/after deltas for PENGAJUAN_SERVICE_REQUESTS_TOTAL and PENGAJUAN_SERVICE_EXCEPTIONS_TOTAL across five endpoints, with outcome labels printed alongside](/images/monitoring-pengajuan-smoke-output.png)
-<!-- HOW TO CAPTURE:
-  1. cd C:\PPL\be-gbm
-  2. python scripts/smoke_pengajuan_metrics.py
-  3. The script prints "BEFORE" counters, hits 5 endpoints with APIClient.force_authenticate, then prints "AFTER" counters with the delta.
-  4. Screenshot the full output (or the BEFORE+AFTER+DELTA blocks if it overflows your terminal).
-  5. Save to C:\PPL\blog-husin\static\images\monitoring-pengajuan-smoke-output.png
--->
+![Smoke test script output: 5 endpoints hit via APIClient.force_authenticate, then the delta for REQUESTS_TOTAL (5 rows of endpoint/outcome/status_code) and EXCEPTIONS_TOTAL (1 row: gb_pengajuan_detail / Http404 / 404)](/images/monitoring-pengajuan-smoke-output.png)
 
 ## Scenario walkthrough: replaying a duplicate-submission spike
 
