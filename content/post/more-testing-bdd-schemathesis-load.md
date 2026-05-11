@@ -12,6 +12,27 @@ The unit-vs-integration debate dominates testing conversations, and it hides cat
 
 Note: our project lives on the internal GitLab. References to *MR* throughout this post mean **Merge Request** (GitHub's pull request equivalent).
 
+![Testing stack overview: existing layers (unit, integration, coverage, mutation, lint) on the left; four new layers added this sprint (BDD, Schemathesis, Locust gate, Bandit local re-run) on the right, each pointing to the bug class it catches](/images/testing-stack-overview.png)
+<!-- HOW TO CAPTURE:
+  Open https://excalidraw.com (free, no signup). Draw two columns connected by arrows:
+
+  LEFT column (EXISTING, label with light gray background):
+    [Django TestCase 197 tests]   → "service & view correctness"
+    [coverage + diff-cover 100%]  → "execution presence"
+    [mutmut 3.x]                  → "assertion quality"
+    [flake8 / SonarQube]          → "style + maintainability"
+
+  RIGHT column (NEW THIS SPRINT, label with green background):
+    [pytest-bdd 5 scenarios]      → "stakeholder intent"
+    [Schemathesis 9 failures]     → "OpenAPI contract drift (DAST)"
+    [Locust ramp + threshold]     → "flow-level p95 regression"
+    [Bandit (verified locally)]   → "SAST on Python source"
+
+  Add a centered arrow between columns labeled "this sprint".
+  Export -> PNG transparent background.
+  Save to C:\PPL\blog-husin\static\images\testing-stack-overview.png
+-->
+
 ## Where the team already was
 
 Before this sprint, the `pengajuan` feature already had:
@@ -45,6 +66,38 @@ The naive argument against BDD is that it duplicates unit test scope in more ver
 These are the kind of rules a product owner or a thesis supervisor reads in plain language, not as `assertEqual(pengajuan.status, "disetujui")`. The framing matters: BDD makes the **rule** the document of record, with the Python step file as the executor.
 
 This pattern is grounded in Dan North's original BDD writings (2006) and the canonical reference is Wynne, Hellesøy & Mugridge, *The Cucumber Book* (Pragmatic Bookshelf, 2017). For Python projects the actively maintained binding is **pytest-bdd**, which integrates with the existing `pytest` runner rather than introducing a separate harness like `behave`.
+
+![BDD execution flow: Gherkin feature file describing scenario in plain Indonesian on the left; Python step file binding Given/When/Then to API calls in the middle; pytest runner executing both and producing PASSED/FAILED on the right](/images/bdd-execution-flow.png)
+<!-- HOW TO CAPTURE:
+  Open https://excalidraw.com. Draw 3 boxes left-to-right connected by arrows:
+
+  Box 1 (yellow background) — title "pengajuan_workflow.feature":
+    Feature: Pengajuan workflow
+      Scenario: Admin menyetujui pengajuan
+        Given ada pengajuan dengan status "menunggu"
+        When admin mengubah status menjadi "disetujui"
+        Then status pengajuan tersimpan sebagai "disetujui"
+
+  Arrow labeled "@scenario decorator binds steps"
+
+  Box 2 (light blue background) — title "test_pengajuan_bdd.py":
+    @given("ada pengajuan ...")
+    def given_pengajuan(...): ...
+    @when("admin mengubah status ...")
+    def when_admin(...): ...
+    @then("status tersimpan ...")
+    def then_status(...): ...
+
+  Arrow labeled "pytest runner"
+
+  Box 3 (green background) — title "Terminal output":
+    PASSED [20%]
+    PASSED [40%]
+    5 passed in 6.28s
+
+  Export -> PNG transparent background.
+  Save to C:\PPL\blog-husin\static\images\bdd-execution-flow.png
+-->
 
 ### Tool choice: pytest-bdd over behave
 
@@ -95,6 +148,31 @@ After this sprint, the suite contains **5 scenarios** in **1 feature file** (`pe
 ### What problem this actually solves
 
 `drf_spectacular` generates an OpenAPI schema from the DRF views automatically. That schema serves two consumers:
+
+![OpenAPI schema as single source feeding two consumers: Django views generate schema via drf_spectacular; schema is then read by both Swagger UI (human, manual click) and Schemathesis (robot, CI fuzz)](/images/schemathesis-vs-swagger.png)
+<!-- HOW TO CAPTURE:
+  Open https://excalidraw.com. Draw a center node with two branches:
+
+  TOP node (gray background, label "Django views (kode aktual)"):
+    Arrow DOWN labeled "drf_spectacular auto-generate" →
+
+  CENTER node (yellow background, large, label "/api/schema/  (OpenAPI 3.0 JSON)"):
+    Two arrows splitting downward:
+
+  LEFT BRANCH (blue background, label "/api/docs/ — Swagger UI"):
+    Sub-label: "manusia klik tombol Try it out"
+    Sub-label: "1 input → 1 response"
+
+  RIGHT BRANCH (green background, label "Schemathesis CLI / pytest"):
+    Sub-label: "robot generate input acak spec-valid"
+    Sub-label: "87 input → 9 unique failures"
+
+  Caption at bottom: "Same JSON file. Different consumer."
+  Export -> PNG transparent background.
+  Save to C:\PPL\blog-husin\static\images\schemathesis-vs-swagger.png
+-->
+
+(text fallback kalau diagram belum di-capture:)
 
 ```
 Django views (kode aktual)
@@ -229,6 +307,37 @@ The blog post that inspired this section makes the point I want to re-emphasize:
 90s  →  120s: 30 →  0  users   (cool-down)
 ```
 
+![Locust ramp profile: line chart of concurrent users on Y axis vs time on X axis, showing four phases (warm-up, ramp, steady, cool-down) with an overlay showing where p95 latency starts to inflect upward](/images/locust-ramp-profile.png)
+<!-- HOW TO CAPTURE:
+  Pilihan A (paling cepat) — pakai https://excalidraw.com:
+    Gambar XY chart dengan:
+      X-axis: Time (0s → 120s), labeled
+      Y-axis kiri: Concurrent users (0 → 30), label biru
+      Y-axis kanan: p95 latency (ms), label oranye
+
+    Plot dua kurva:
+      Kurva biru "users":
+        0s=0, 10s=10 (warm-up linear)
+        30s=30 (ramp linear)
+        90s=30 (steady)
+        120s=0 (cool-down linear)
+      Kurva oranye "p95 latency":
+        0-30s: tetap rendah (200ms)
+        30-60s: naik perlahan (400ms)
+        60-90s: spike (800ms+) — TANDAI sebagai "inflection point"
+        90-120s: turun lagi seiring cool-down
+
+    Tambah label vertikal di garis 60s: "where the wall is hit"
+    Caption bawah: "Ramp shows WHERE; flat load shows only WHAT."
+
+  Pilihan B — kalau punya hasil Locust real, screenshot tab "Charts"
+  dari Locust HTML report (`--html reports/locust-pengajuan.html`).
+  Itu otomatis kasih grafik user count vs latency over time.
+
+  Export -> PNG transparent background.
+  Save to C:\PPL\blog-husin\static\images\locust-ramp-profile.png
+-->
+
 If p95 holds under 800ms at 10 users but spikes to 2.5s at 25 users, the ramp curve shows the inflection. A flat profile would just report `p95 = 2.5s` with no clue where the wall was hit.
 
 ### Where this is run
@@ -279,6 +388,27 @@ This is the right standard for this sprint. The pengajuan module does not need a
 
 The complement Bandit (SAST) makes with Schemathesis (DAST) is the same as the [OWASP guidance on Application Security Testing](https://owasp.org/www-project-web-security-testing-guide/): static analysis reads the code without running it; dynamic analysis runs the server without reading its code. Both catch different classes of issue, and the cost of running both is dominated by CI minutes, not engineering attention.
 
+![SAST vs DAST complementarity: Bandit on the left reading Python AST without running it (catches eval, hardcoded secrets, weak crypto); Schemathesis on the right hitting the live server with fuzzed requests (catches contract drift, undocumented status codes); each finds a different class of issue](/images/sast-vs-dast.png)
+<!-- HOW TO CAPTURE:
+  Open https://excalidraw.com. Draw two parallel pipelines, side by side:
+
+  LEFT pipeline (blue tint, label "SAST — Bandit"):
+    [Python source .py files] → [Bandit AST parser] → [Report: B704, B608, ...]
+    Caption: "Reads code. Server never starts."
+    Bullet underneath: "Catches: eval, weak crypto, hardcoded secrets, unsafe deserialization"
+
+  RIGHT pipeline (green tint, label "DAST — Schemathesis"):
+    [OpenAPI schema] → [Generated HTTP requests] → [Live server response] → [Schema conformance check]
+    Caption: "Runs server. Source never inspected."
+    Bullet underneath: "Catches: contract drift, undocumented 5xx, response shape violation"
+
+  Bottom center caption: "Different lens, different bug class. Both at <1 minute CI cost."
+
+  Export -> PNG transparent background.
+  Save to C:\PPL\blog-husin\static\images\sast-vs-dast.png
+-->
+
+
 ## How the four compose
 
 Each technique covers a dimension the others structurally cannot:
@@ -305,41 +435,6 @@ Bandit (verified locally)→ SAST on Python source
 ```
 
 The four lines above the divider already existed. The four below are what this sprint added: three I built end-to-end, one I re-verified locally to make sure my code clears the gate the teammate configured globally. The combination is what produces actual confidence at merge time, not the sum of any individual layer.
-
-## Sprint follow-ups & open questions
-
-<!-- PLACEHOLDER: isi 2-4 bullet point soal hal yang belum kelar atau yang
-     sengaja ditunda. Contoh kerangka:
-     - Bandit: belum bikin .bandit config file di repo, masih pakai flag
-       command-line untuk exclude. Tindak lanjut: pindahkan ke pyproject.toml.
-     - Schemathesis: bagaimana auth token di-rotate untuk fuzzer ketika
-       JWT expired di tengah run? Sementara pakai token static, belum ideal.
-     - Locust: belum ada commit "after-optimization" untuk dibandingkan vs
-       baseline. Tindak lanjut setelah optimization sprint berikutnya.
-     - BDD: scenario stateful (multi-step pengajuan → notif → laporan)
-       belum ditulis; itu masuk sprint depan.
--->
-
-- <!-- PLACEHOLDER bullet 1 -->
-- <!-- PLACEHOLDER bullet 2 -->
-- <!-- PLACEHOLDER bullet 3 -->
-
-## Data & metrics worth tracking next sprint
-
-<!-- PLACEHOLDER: isi tabel kecil yang berisi angka konkret kamu ingin
-     pantau sprint depan. Contoh kolom: Metrik | Sekarang | Target.
-     Misal:
-     | BDD scenario count | 5 | 15 |
-     | Schemathesis unique failures | 9 | 0 (after fix) |
-     | Locust p95 listing kaprodi (staging) | (belum diukur) | < 500 ms |
-     | Bandit findings di pengajuan/ | 0 | 0 (tetap) |
--->
-
-| Metrik | Sekarang | Target sprint berikut |
-|---|---|---|
-| <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> |
-| <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> |
-| <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> |
 
 ## Reflection: which of the four was worth the effort
 
