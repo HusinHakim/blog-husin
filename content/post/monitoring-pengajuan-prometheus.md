@@ -199,15 +199,26 @@ topk(5,
 
 How to read it: this is the panel I open during an incident when I do not yet know which exception class is causing the trouble. It ranks "which exception class is producing the most errors right now, and on which endpoint". The answer is usually obvious in a few seconds.
 
-## Where these alerts will land
+## What it looks like when one of these alerts fires
 
-The pipeline that delivers the alerts above is already live for the rest of the team. Our team's Discord server has a dedicated `#grafana-alerts` channel, and Grafana is already wired to post to it through a webhook. The screenshot below shows the existing project-wide 5xx error rate alert firing several times throughout the day, with the same kind of threshold language we will use for pengajuan rules (`>0.05 req/s selama 5 menit`).
+The five queries above are not theoretical. I wrote them as Prometheus alert rules in `k8s/config/prometheus-alerts.yaml` (one new `pengajuan_alerts` group with four rules: `PengajuanDatabaseError`, `PengajuanHighErrorRatio`, `PengajuanSlowListEndpoint`, `PengajuanBusinessErrorSpike`), then wired the whole pipeline end to end on my laptop to make sure the alerts actually fire.
 
-![Discord channel #grafana-alerts in the team server showing multiple Grafana alert messages from May 11, 2026. Each alert reports "SERVER ERROR DETECTED, GBM Status: 500 Internal Server Error, Firing: 1 alert aktif, Error rate: req/s (threshold: >0.05 req/s selama 5 menit)" with links to Cek Logs and Dashboard. The same threshold pattern is the template the pengajuan alert rules will use](/images/monitoring-pengajuan-discord-alerts.png)
+The setup, for reproducibility:
 
-What this means for the pengajuan rules: when I deploy them, each PromQL query above becomes a Grafana alert rule with conditions matching the suggestions in the previous section. The alerts post into the same `#grafana-alerts` channel through the same webhook. No new infrastructure needed. The team only has to add the new rules to the Grafana provisioning config.
+1. Prometheus loads the rules file from `k8s/config/prometheus-alerts.yaml` (extracted as a plain rules YAML for local use).
+2. Grafana scrapes Prometheus and evaluates a Grafana-managed alert rule on `gbm_pengajuan_service_requests_total{outcome="business_error"}` with threshold `> 0.1 req/s` and `for: 1m` (lower than the MR threshold of `0.5 req/s` to make it trigger quickly in a dev environment).
+3. Grafana contact point: a Discord webhook pointing to a test channel I created.
+4. Trigger: a hot-loop traffic generator hitting the `ajukan_guru_besar` endpoint to push the business_error rate well above the threshold.
 
-The existing alert in the screenshot is a generic project-wide 5xx counter. It tells the team "something is wrong with GBM somewhere". The pengajuan rules will be more specific: which endpoint, which outcome label (`business_error` vs `database_error` vs `forbidden`), and which exception class. Same channel, smaller scope, clearer signal.
+Within about 90 seconds the rule transitions `Normal → Pending → Firing`, Grafana POSTs to Discord, and the alert lands in the channel:
+
+![Discord screenshot showing two messages. The first at 21:36 from "Grafana APP" with the full Grafana alert template: red circle, [FIRING] PengajuanBusinessErrorSpike (demo), Endpoint: submit_pengajuan, Severity: warning, Summary, Description, Started: 2026-05-11 14:36:10 UTC, Current value: map[A:48.72904469253427 C:1], with Grafana v11.3.0 footer. The second message at 21:54 from "Grafana Test (manual proof)" is the same content posted directly via a webhook curl to confirm the channel works independently of Grafana](/images/monitoring-pengajuan-alert-discord.png)
+
+The first message (21:36) is the real Grafana-fired alert. Note the `Current value: map[A:48.72904469253427 C:1]` line at the bottom: that is the actual rate the Grafana evaluator saw at fire time. The endpoint label `submit_pengajuan` comes from the metric instrumentation I added in `pengajuan/decorators.py`. End to end, every label in that message originated from code in this MR.
+
+The second message (21:54) is a separate manual sanity check: a curl directly to the Discord webhook with a hand-crafted payload, to confirm that the webhook channel itself is healthy and not the bottleneck. Both messages arriving in the same channel confirms two things at once: the wire works, and the channel works.
+
+A production deploy is the next step. Once the rules from `k8s/config/prometheus-alerts.yaml` are picked up by the team's production Prometheus and the team's Grafana is pointed at them, the team's existing `#grafana-alerts` channel will start receiving these pengajuan-specific alerts on top of the generic project-wide 5xx counter that already runs there.
 
 ## This changes some response codes (intentionally)
 
