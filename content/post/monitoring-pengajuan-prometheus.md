@@ -199,6 +199,16 @@ topk(5,
 
 How to read it: this is the panel I open during an incident when I do not yet know which exception class is causing the trouble. It ranks "which exception class is producing the most errors right now, and on which endpoint". The answer is usually obvious in a few seconds.
 
+## Where these alerts will land
+
+The pipeline that delivers the alerts above is already live for the rest of the team. Our team's Discord server has a dedicated `#grafana-alerts` channel, and Grafana is already wired to post to it through a webhook. The screenshot below shows the existing project-wide 5xx error rate alert firing several times throughout the day, with the same kind of threshold language we will use for pengajuan rules (`>0.05 req/s selama 5 menit`).
+
+![Discord channel #grafana-alerts in the team server showing multiple Grafana alert messages from May 11, 2026. Each alert reports "SERVER ERROR DETECTED, GBM Status: 500 Internal Server Error, Firing: 1 alert aktif, Error rate: req/s (threshold: >0.05 req/s selama 5 menit)" with links to Cek Logs and Dashboard. The same threshold pattern is the template the pengajuan alert rules will use](/images/monitoring-pengajuan-discord-alerts.png)
+
+What this means for the pengajuan rules: when I deploy them, each PromQL query above becomes a Grafana alert rule with conditions matching the suggestions in the previous section. The alerts post into the same `#grafana-alerts` channel through the same webhook. No new infrastructure needed. The team only has to add the new rules to the Grafana provisioning config.
+
+The existing alert in the screenshot is a generic project-wide 5xx counter. It tells the team "something is wrong with GBM somewhere". The pengajuan rules will be more specific: which endpoint, which outcome label (`business_error` vs `database_error` vs `forbidden`), and which exception class. Same channel, smaller scope, clearer signal.
+
 ## This changes some response codes (intentionally)
 
 The decorator deliberately changes how some failures look from the outside. Before this MR, a few endpoints returned a generic 500 for business problems that should have been 409 or 404. After this MR:
