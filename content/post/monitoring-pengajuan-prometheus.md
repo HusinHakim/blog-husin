@@ -1,30 +1,30 @@
 +++
-title = "Custom Prometheus metrics for a Django feature: from default Sentry to project-specific alerts"
+title = "Sentry tells me what broke. Prometheus tells me what's quietly drifting."
 date = "2026-05-07"
 author = "Husin Hidayatul"
-description = "Sentry catches errors; Sentry Replay shows what users did before the error. Neither answers 'is the pengajuan API healthy right now?'. Here is how I added Prometheus metrics, custom outcome labels, and PromQL alert queries to a 7-endpoint Django feature in 540 lines."
+description = "Bolting custom Prometheus metrics onto a 7-endpoint Django feature in 540 lines, with seven business-meaningful outcome labels and five PromQL queries ready to become alerts."
 toc = true
 tags = ["monitoring", "prometheus", "grafana", "django", "observability", "alerting"]
 categories = ["platform-monitoring"]
 +++
 
-Our backend already ships with Sentry for error capture and Sentry Session Replay for client-side breadcrumbs. Both are excellent at one thing: telling you *what broke* after the fact. Neither answers the operational question that wakes a maintainer at 3 AM: **is the pengajuan API healthy right now, and which endpoint is misbehaving?** This sprint I instrumented all 7 endpoints of the `pengajuan` feature with custom Prometheus metrics, defined business-meaningful outcome labels, and wrote the PromQL queries that will power our alert rules. Total diff: 8 files, 540 added lines, zero deletions.
+Sentry pages me when an endpoint crashes. It does not page me when 60% of submissions silently return 409 because we just shipped a validation regression. Different question, different tool. This sprint I bolted Prometheus instrumentation onto the seven endpoints of our `pengajuan` feature: **eight files, 540 lines added, zero deleted**. The result is a request-rate counter, an exception counter, a latency histogram, and five PromQL queries that turn each of those into an alert candidate.
 
 ![Architecture diagram: request flow from browser through Django decorator into metrics.py, exposed at /api/metrics, scraped by Prometheus, visualized in Grafana, and routed to alerts](/images/monitoring-pengajuan-architecture.png)
 
-## What this monitoring is designed to surface
+## Three failure modes you cannot see today
 
-Three scenarios that the existing stack (Sentry + GCP defaults) cannot catch cleanly but that the new metrics make obvious:
+Stuff that the existing Sentry + GCP defaults stack lets slip through, but that the new metrics catch in one scrape:
 
-- **Permission drift after a role refactor.** A spike of `outcome="forbidden"` on a single endpoint within minutes of a deploy means the role check tightened by accident. Sentry sees this only if `PermissionDenied` is captured (it usually is not).
-- **Database connectivity blip.** A non-zero rate of `exception_type="OperationalError"` for 2 minutes is a pager-grade signal of pool exhaustion or a network partition. Host-level CPU dashboards lag this by 10 to 15 minutes.
-- **Business-logic regression.** A surge of `outcome="business_error"` on `ajukan_guru_besar` after a release means we just shipped validation that rejects legitimate submissions. Sentry will not flag this because no exception escaped; the 409 was returned cleanly.
+- **Permission drift after a role refactor.** A spike of `outcome="forbidden"` on a single endpoint minutes after a deploy means the role check tightened by accident. Sentry only sees this if `PermissionDenied` was captured, and it usually was not.
+- **Database connectivity blip.** A non-zero rate of `exception_type="OperationalError"` for 2 minutes is a pager-grade signal of pool exhaustion or a network partition. Host-level CPU graphs lag this by 10 to 15 minutes, which is roughly the same as no signal at all.
+- **Silent business-logic regression.** A surge of `outcome="business_error"` on `ajukan_guru_besar` after a release means the new validation rejects legitimate submissions. Sentry does not flag it because no exception escaped; the 409 was returned cleanly. The user just goes away.
 
-The post that follows walks through the implementation choices that make those three queries possible.
+The rest of the post is the implementation that makes those three queries possible.
 
 ## Where the team already was
 
-Before this MR, the production observability stack looked like this:
+The production stack was not empty. It just had a feature-shaped hole in it:
 
 | Layer | Tool | What it tells you |
 |---|---|---|
@@ -33,23 +33,21 @@ Before this MR, the production observability stack looked like this:
 | Backend platform | GCP / Digital Ocean defaults | CPU, memory, host-level metrics |
 | Backend service | `documents/` had custom Prometheus metrics | Request rate, exception breakdown, p95 latency |
 
-The pattern in `documents/` was the team's own work. It defines three Prometheus metrics with business-meaningful labels and a decorator that wraps each handler. Other features had not adopted it yet, including `pengajuan` (the Pengajuan Guru Besar feature, 7 endpoints across admin, kaprodi, and guru-besar roles).
+That bottom row is the interesting one. Someone on the team had already built the custom-Prometheus pattern for the `documents/` feature: three metrics with business-meaningful labels, a decorator that wraps each handler, the whole thing. It just stopped there. The other seven `pengajuan` endpoints (admin, kaprodi, guru-besar) fell back to generic Sentry counts and host-level dashboards, which is what most teams have, and what most teams quietly regret having when something starts drifting.
 
-So the gap was not "we have no monitoring". It was: **the existing custom monitoring pattern stops at one feature**, and the rest of the codebase falls back to generic Sentry counts plus host-level dashboards. That gap matters, because Sentry counts surface only the errors you remember to capture, and host-level dashboards flatten 7 endpoints into one number.
+## Where Sentry stops being useful
 
-## Why not just rely on Sentry
+Sentry is a debugger, not a service-level meter. It is excellent at "show me the stack trace for this 500", but it cannot answer the three questions I actually want to ask the system:
 
-Sentry is a debugger, not a service-level meter. It excels at "show me the stack trace for this 500", but it does not answer:
+- **Request rate per endpoint per outcome.** Sentry counts errors, not successes. You cannot compute a ratio if you only count the numerator.
+- **p95 latency per endpoint.** Sentry has tracing, but the 10% sample rate is too sparse for percentile alerting on low-traffic endpoints. You get noise, not a signal.
+- **Business-meaningful outcome breakdown.** Sentry groups by exception type. I want to group by *what the user experienced*: forbidden permission, duplicate submission, database outage. Those are three completely different oncall responses.
 
-- **Request rate per endpoint per outcome.** Sentry only logs errors, not successes.
-- **p95 latency per endpoint.** Sentry has tracing, but tracing sample rates of 10% are too coarse for percentile alerting on low-traffic endpoints.
-- **Business-meaningful outcome breakdown.** Sentry groups by exception type, not by "this is a forbidden permission denial vs a state-conflict from a duplicate pengajuan vs a real database outage".
+Prometheus answers all three. It samples 100% of requests in-process, aggregates by labels at scrape time, and stays cheap as long as you keep your cardinality bounded. The catch: you have to define the labels yourself. Out of the box, you get URL paths and HTTP codes, which is exactly the wrong granularity.
 
-Prometheus answers all three because it samples 100% of requests in-process and aggregates labels at scrape time. The trade-off is that you have to define the labels yourself.
+## One decorator, seven outcomes
 
-## The custom decorator: where the project-specific value lives
-
-Out-of-the-box `django-prometheus` would have given me URL-level counters and histograms. That is fine for HTTP-level dashboards, and useless for product alerting because it knows nothing about the difference between a duplicate-submission 409 (business) and a database 503 (infrastructure). The customization that mattered was a decorator that maps **project-specific exception classes** to **business-meaningful outcome labels**.
+The work that mattered was 160 lines of decorator that maps **project-specific exception classes** to **business-meaningful outcome labels**. `django-prometheus` would have given me URL-level counters in five minutes. That is fine for an SRE dashboard, and useless for product alerting because it cannot tell a duplicate-submission 409 (business) from a database 503 (infrastructure). The mapping below is the entire reason this MR exists:
 
 ```python
 def _outcome_from_status(status_code: int) -> str:
@@ -66,7 +64,7 @@ def _outcome_from_status(status_code: int) -> str:
     return "server_error"
 ```
 
-The seven outcome values (`success`, `not_found`, `forbidden`, `business_error`, `client_error`, `database_error`, `server_error`) map cleanly to Grafana panels and to our alert thresholds. A spike in `business_error` is product feedback. A spike in `database_error` is an oncall page. Generic 4xx/5xx counters cannot make that distinction.
+Seven outcome values (`success`, `not_found`, `forbidden`, `business_error`, `client_error`, `database_error`, `server_error`). Each one corresponds to a different action by the team. A spike in `business_error` is product feedback. A spike in `database_error` is an oncall page. Generic 4xx and 5xx counters cannot make that distinction, because they were never designed to.
 
 Three custom exception classes anchor the mapping:
 
@@ -81,9 +79,9 @@ class PengajuanStateError(Exception):
     """Raised when an action cannot be performed due to pengajuan state."""
 ```
 
-The decorator is the single place that catches each one, records the metric, and returns the right status code. That centralization is important for two reasons. First, response shape stays consistent (`{"success": false, "error": ...}`) without every handler reinventing it. Second, behavior changes are reviewable in one file.
+One file catches all of them, records the metric, and returns the right status code. That centralization buys two things. Response shape stays consistent (`{"success": false, "error": ...}`) without every handler reinventing it. And any future behavior change is reviewable in exactly one file, not seven.
 
-## The metrics
+## Three metrics, 294 series, no label sprawl
 
 Three metrics, scoped to `pengajuan` so they are queryable in isolation:
 
@@ -93,15 +91,15 @@ Three metrics, scoped to `pengajuan` so they are queryable in isolation:
 | `gbm_pengajuan_service_exceptions_total` | Counter | `endpoint`, `exception_type`, `status_code` |
 | `gbm_pengajuan_service_request_duration_seconds` | Histogram | `endpoint`, `outcome` |
 
-Histogram buckets: `0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10` seconds. The bucket spread covers everything from a hot-cache list query (under 25 ms in dev) to a slow upload-and-validate path that legitimately touches the file storage layer. Bucket choice matters because `histogram_quantile` interpolates inside whichever bucket the percentile falls in. Buckets too sparse near your real p95 produce nonsense percentiles.
+Histogram buckets: `0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10` seconds. The spread covers everything from a hot-cache list query (under 25 ms in dev) to a slow upload-and-validate path that legitimately touches the file storage layer. Bucket choice matters more than people think, because `histogram_quantile` interpolates inside whichever bucket the percentile lands in. Sparse buckets near your real p95 produce nonsense percentiles, and you will not notice until the alert fires for the wrong reason.
 
-Cardinality is bounded by design: 7 endpoints × 7 outcomes × 6 status codes is **294 series maximum** per counter. No `user_id` or `pengajuan_id` labels. Every label was chosen to answer an operational question, not for log-style filtering.
+Cardinality is bounded by design. 7 endpoints × 7 outcomes × 6 status codes is **294 series maximum** per counter. No `user_id`, no `pengajuan_id`, no free-text labels. Every label exists to answer an operational question, never to do log-style filtering. The first time someone in your team asks "can we add a `user_email` label?", say no, calmly, and then explain why.
 
 ![Raw /api/metrics endpoint output filtered to gbm_pengajuan_*, showing the three counters and histogram populated after a few sample requests](/images/monitoring-pengajuan-metrics-endpoint.png)
 
-## Wiring it into the views
+## One line per endpoint, seven times
 
-The decorator is one line per endpoint, stacked beneath existing decorators (including `@silk_profile` on the guru-besar views, so request profiling continues alongside metric emission):
+The decorator is exactly one line per endpoint, stacked beneath existing decorators. On the guru-besar views, it sits below `@silk_profile`, so request profiling keeps working alongside metric emission:
 
 ```python
 @gb_pengajuan_detail_schema
@@ -112,27 +110,27 @@ def gb_pengajuan_detail(request, pk):
     ...
 ```
 
-Seven endpoints, seven decorator additions, seven new imports. No business logic was rewritten. `try/except` blocks already inside handlers are preserved; the decorator wraps the outermost call, so success paths still return their `Response` and the metric is observed from the response status code.
+Seven endpoints, seven decorator additions, seven new imports. No business logic touched. Existing `try/except` blocks inside handlers were left alone, because the decorator wraps the outermost call: success paths still return their `Response`, and the metric is observed from whatever status code came out.
 
 ![Smoke test script output: 5 endpoints hit via APIClient.force_authenticate, then the delta for REQUESTS_TOTAL (5 rows of endpoint/outcome/status_code) and EXCEPTIONS_TOTAL (1 row: gb_pengajuan_detail / Http404 / 404)](/images/monitoring-pengajuan-smoke-output.png)
 
-## Scenario walkthrough: replaying a duplicate-submission spike
+## Replaying a duplicate-submission spike
 
-To validate that the alerts above would actually fire, I reproduced the most likely production failure mode locally: a frontend retry loop on `ajukan_guru_besar` that hammers the endpoint with the same payload, each call returning 409 because the pengajuan already exists.
+To prove the alerts would actually fire, I reproduced the most likely production failure mode locally. A frontend retry loop on `ajukan_guru_besar` that hammers the endpoint with the same payload, each call returning 409 because the pengajuan already exists. The kind of thing that happens at 14:00 on a Friday when nobody is watching.
 
 Sequence:
 
-1. Start the full local stack: `docker compose -f docker-compose.monitoring.yml up -d` (Prometheus on `:9090`, Grafana on `:3000`).
-2. Run the smoke script with the duplicate flag (or hit the endpoint 30 times in a `for` loop with the same body).
+1. Start the local stack: `docker compose -f docker-compose.monitoring.yml up -d` (Prometheus on `:9090`, Grafana on `:3000`).
+2. Run the smoke script with the duplicate flag, or hit the endpoint 30 times in a `for` loop with the same body.
 3. Open Prometheus at `http://localhost:9090` and run the request-rate query from the next section.
 
-The `business_error` line lifts off zero within one scrape interval (15 seconds). The `success` line stays flat. That separation is the entire reason `outcome` exists as a label.
+Within one scrape interval (15 seconds) the `business_error` line lifts off zero. The `success` line stays flat. That separation, on the same chart, is the entire reason `outcome` exists as a label.
 
 ![Prometheus query result for sum by (endpoint, outcome) (rate(gbm_pengajuan_service_requests_total[5m])) showing four series climbing as traffic ramps up: admin_pengajuan_list-success at ~0.94, list_pengajuan_kaprodi-success at ~0.78, daftar_guru_besar-success at ~0.62, and gb_pengajuan_detail-not_found at ~0.23](/images/monitoring-pengajuan-prometheus-spike.png)
 
-## Alerts and PromQL: the level-4 customization
+## Five queries that become alerts
 
-This is where the work pays off. The metrics by themselves are inventory; the queries below turn them into alerts that the team can act on.
+This is where the work pays off. Metrics on their own are inventory. The queries below are how that inventory becomes something a human can be paged about.
 
 ### 1. Per-endpoint request rate, broken down by outcome
 
@@ -144,7 +142,7 @@ sum by (endpoint, outcome) (
 )
 ```
 
-Use case: a sudden surge in `business_error` on `ajukan_guru_besar` after a release means we just shipped a regression that rejects valid submissions. A surge in `forbidden` is more likely a permissions config drift.
+Reading: a sudden surge in `business_error` on `ajukan_guru_besar` after a release means we just shipped a regression that rejects valid submissions. A surge in `forbidden` is almost always a permissions config drift. Two completely different fixes, surfaced from the same chart.
 
 ### 2. Error ratio per endpoint
 
@@ -158,7 +156,7 @@ sum by (endpoint) (
 )
 ```
 
-Alert candidate: ratio above 0.05 on any endpoint sustained 10 minutes triggers a Slack ping. The threshold should not be uniform across endpoints because traffic profiles differ; refine per-endpoint after a week of baseline data.
+Alert candidate: ratio above 0.05 on any endpoint sustained for 10 minutes pings Slack. The threshold should not be uniform across endpoints; traffic profiles differ, and tuning per endpoint after a week of baseline data is the right call.
 
 ### 3. p95 latency per endpoint
 
@@ -173,7 +171,7 @@ histogram_quantile(
 
 Alert candidate: p95 above 1 second on a list endpoint, or above 2 seconds on a detail/update endpoint, sustained 5 minutes. These thresholds are intentionally generous to start; we will tighten after baseline.
 
-![Provisioned Grafana panel "Pengajuan p95 latency per endpoint" in kiosk view, rendering three endpoints (admin_pengajuan_list, daftar_guru_besar, gb_pengajuan_detail) with Last and Max columns in the right legend. Local dev traffic is light, so p95 sits uniformly around 9.5 ms — three orders of magnitude below the 1-second alert threshold](/images/monitoring-pengajuan-grafana-p95.png)
+![Provisioned Grafana panel "Pengajuan p95 latency per endpoint" in kiosk view, rendering three endpoints (admin_pengajuan_list, daftar_guru_besar, gb_pengajuan_detail) with Last and Max columns in the right legend. Local dev traffic is light, so p95 sits uniformly around 9.5 ms, three orders of magnitude below the 1-second alert threshold](/images/monitoring-pengajuan-grafana-p95.png)
 
 ### 4. Database-availability signal
 
@@ -183,7 +181,7 @@ sum by (endpoint) (
 )
 ```
 
-Alert candidate: any non-zero rate sustained 2 minutes is a paging event. `OperationalError` is the boundary symptom of database connectivity loss; it is rare in normal operation, so the threshold can be aggressive.
+Alert candidate: any non-zero rate sustained 2 minutes pages someone. `OperationalError` is the boundary symptom of database connectivity loss. It should never happen in steady state, which is precisely why the threshold can be this aggressive without becoming noise.
 
 ### 5. Top exceptions per endpoint, ranked
 
@@ -195,11 +193,11 @@ topk(5,
 )
 ```
 
-Use case: a dashboard panel that ranks "which exception class is contributing the most error volume this hour, on which endpoint". Useful during incident triage when you do not know which exception type to filter by yet.
+Reading: this is the panel you open during an incident when you do not yet know which exception class to filter by. It ranks "which exception is generating the most error volume this hour, on which endpoint", and the answer is usually obvious within five seconds.
 
-## Behavior change: the part that needed a frontend conversation
+## Yes, this changes some response codes
 
-The decorator deliberately changes some response codes. Previously some endpoints returned a generic 500 for business errors that should have been 409 or 404. After this MR:
+The decorator deliberately changes how some failures look from the outside. A handful of endpoints used to return a generic 500 for business errors that should have been 409 or 404. After this MR:
 
 | Cause | Before | After |
 |---|---|---|
@@ -208,24 +206,26 @@ The decorator deliberately changes some response codes. Previously some endpoint
 | `PengajuanPermissionError` | sometimes 500 | 403 |
 | `OperationalError` (DB outage) | leaked as 500 | 503 with user-facing message |
 
-This is a contract change, so it required a frontend handoff: do not hardcode `if status === 500` as the indicator of a business problem. The MR description called this out explicitly. The trade-off was worth it because: (a) clients can now react to 409 as a specific user-correctable error, and (b) the metric `outcome` label finally distinguishes business volume from infrastructure volume.
+This is a contract change, which means it needed a frontend handoff: stop hardcoding `if status === 500` as the indicator of "something went wrong". The MR description spelled this out, and the FE side was checked before merge. The trade-off was worth it for two reasons. Clients can now react to a 409 as a specific user-correctable error ("you already submitted this, want to edit it?"), and the metric `outcome` label finally distinguishes business volume from infrastructure volume. The same change paid off in two places at once.
 
-## What stayed out of scope
+## Why this is level-4 work, not level-2
 
-Three things I deliberately did not ship in this MR:
+A monitoring rubric usually has four steps: install a tool, configure it, customize it, design alerts that drive real responses. Each step adds value, each step is also where teams typically stop and call the job done.
 
-- **Grafana dashboard JSON.** The metrics need at least 24 hours of staging traffic before the dashboard panels are useful, otherwise the y-axis will be misleading. Dashboard JSON lives in a follow-up MR after baseline data exists.
-- **Alert rules in Prometheus config.** Same reasoning. Threshold values without a baseline are guesses, and noisy alerts erode trust. The PromQL queries above are the *seed*; the rules they become need real numbers.
-- **Frontend cookie consent + Google Analytics / PostHog.** Different layer of monitoring, different compliance work. Tracked separately.
+Installing `django-prometheus` is level-2 work. You get URL-level counters in five minutes and a dashboard nobody opens because the labels do not match how the team thinks about the product.
 
-This is the level-4 distinction the rubric asks about. Setting up a metric is level-2 work. Customizing the labels and outcomes for the project's domain is level-3. **Designing alerts that map to oncall responses, validated against real baselines, is level-4.** The first two are in this MR; the third is the next iteration, which is the right shape for it given that alert thresholds without traffic data are theater.
+Customizing the labels and outcomes for the project's domain, which is what most of this post is about, is level-3 work. The dashboard now talks the team's language, but nothing is actively watching it.
 
-## Lessons
+**Designing alerts that map to specific oncall responses, with thresholds derived from real baseline traffic, is level-4 work.** That is the final piece, and it is the piece where this MR stops. The five PromQL queries above are seeded but not deployed as alert rules yet, because alert thresholds picked without baseline data are theater. They either fire constantly and get muted, or they never fire and create false confidence. Both outcomes are worse than no alert at all.
 
-**Auto-instrumentation gets you 60%, customization gets you the last 40.** `django-prometheus` would have produced URL-level counters in 5 minutes. It would have been blind to the difference between business errors and platform errors. Forty extra lines of decorator turned that blindness into actionable labels.
+The one thing genuinely out of scope here is the frontend layer: cookie consent and a user-activity tracker (PostHog or Google Analytics). Different compliance work, different conversation, different MR.
 
-**Bound your cardinality before you write the first metric, not after.** 7 × 7 × 6 = 294 series. No user IDs, no resource IDs, no free-text labels. Cardinality explosions are the most common reason Prometheus deployments degrade in production.
+## Four things I'd tell the next team
 
-**Behavior change is a feature of the decorator pattern, not a bug.** Centralizing exception-to-status mapping is exactly why the decorator exists. The cost is a contract change for frontend; the value is that the same change is observable in metrics, log structure, and Sentry severity at once. That alignment is what makes alerts trustable later.
+**Auto-instrumentation gets you 60% of the way. Customization gets you the last 40.** `django-prometheus` would have produced URL-level counters in five minutes and would have been blind to the difference between a business error and a platform error forever. Forty extra lines of decorator turned that blindness into labels you can actually alert on.
 
-**Sentry, Sentry Replay, and Prometheus are not redundant.** Sentry tells you the stack trace of one error. Sentry Replay tells you what the user did before the error. Prometheus tells you the rate, percentile, and business-outcome breakdown across all requests. The team needs all three; cutting one to "simplify" leaves a hole that the others cannot fill.
+**Bound your cardinality before you write the first metric, not after.** 7 × 7 × 6 = 294 series. No user IDs, no resource IDs, no free-text labels. Cardinality explosions are the single most common reason Prometheus deployments degrade in production. The temptation to add "just one more label" is always there, and it is almost always a trap.
+
+**Behavior change is the point of the decorator pattern, not a side effect.** Centralizing the exception-to-status mapping is exactly why the decorator exists. The cost is a contract change for the frontend. The value is that the same change is now visible in metrics, log structure, and Sentry severity at once. That alignment is what makes alerts trustable later, when nobody remembers why they were written.
+
+**Sentry, Sentry Replay, and Prometheus are not redundant; they are orthogonal.** Sentry shows you the stack trace of one specific error. Sentry Replay shows you what the user did before that error. Prometheus shows you the rate, the percentile, and the business-outcome breakdown across every request the system has ever served. The team needs all three. Cutting one to "simplify the stack" leaves a hole the other two cannot fill, and the hole is exactly where the next incident will come from.
