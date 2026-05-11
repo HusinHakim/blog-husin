@@ -1,14 +1,14 @@
 +++
-title = "Beyond unit tests for a Django feature: BDD, API schema fuzzing, and load test gating"
+title = "Beyond unit tests for a Django feature: BDD, schema fuzzing, load gating, and SAST"
 date = "2026-05-11T05:00:00+07:00"
 author = "Husin Hidayatul"
-description = "Unit test answers 'does this function return the right value'. It does not catch endpoints that lie about their schema, status transitions that drift from product intent, or merges that silently double p95 latency. Here is how I added BDD, Schemathesis, and a Locust gating threshold to the Pengajuan feature of our Django backend."
+description = "Unit test answers 'does this function return the right value'. It does not catch endpoints that lie about their schema, status transitions that drift from product intent, or merges that silently double p95 latency. Here is how I added BDD, Schemathesis, a Locust gating threshold, and a Bandit local verification step to the Pengajuan feature of our Django backend."
 toc = true
-tags = ["bdd", "schemathesis", "locust", "load-testing", "django", "testing", "qa"]
+tags = ["bdd", "schemathesis", "locust", "load-testing", "bandit", "sast", "django", "testing", "qa"]
 categories = ["software-testing"]
 +++
 
-The unit-vs-integration debate dominates testing conversations, and it hides three categories of bug that neither side catches. A unit test that asserts `service.update_status(...) == "disetujui"` does not tell you the **stakeholder-readable rule** behind that transition. An integration test that posts a hand-crafted payload does not catch the dozens of **spec-valid payloads the engineer never thought to write**. Neither catches a merge that **doubles p95 latency** of the same endpoint. This post walks through the three "other" testing layers I added on top of an already mature unit test suite for the `pengajuan` feature: pytest-bdd, Schemathesis, and a Locust gating profile.
+The unit-vs-integration debate dominates testing conversations, and it hides categories of bug that neither side catches. A unit test that asserts `service.update_status(...) == "disetujui"` does not tell you the **stakeholder-readable rule** behind that transition. An integration test that posts a hand-crafted payload does not catch the dozens of **spec-valid payloads the engineer never thought to write**. Neither catches a merge that **doubles p95 latency** of the same endpoint. And neither catches an unsafe code pattern that hides in a corner of the module no reviewer scrolled to. This post walks through four "other" testing layers I added (or, in the case of Bandit, re-ran locally to verify) on top of an already mature unit test suite for the `pengajuan` feature: pytest-bdd, Schemathesis, a Locust gating profile, and a local Bandit scan.
 
 Note: our project lives on the internal GitLab. References to *MR* throughout this post mean **Merge Request** (GitHub's pull request equivalent).
 
@@ -257,7 +257,29 @@ Two endpoints overshot the budget; `check_locust_thresholds.py` exited with code
 
 Caveat about these specific numbers: the run was against a *fresh local SQLite* with no prior cache warming, and the kaprodi/guru-besar listing endpoints execute joins against `KaprodiModel` + `GuruBesarModel` + `Periode` that benefit heavily from connection-level cache. On staging Postgres with realistic data, p95 on these listings is closer to 200ms (we have observed this manually in earlier `KegiatanStressTestUser` runs). The point of the screenshot is **the gating mechanism works**, not that the production system is currently violating the budget.
 
-## How the three compose
+## 4. Bandit: local re-run to verify pengajuan code clears the SAST gate
+
+Bandit (SAST for Python) is owned and configured globally by a teammate. The CI job runs Bandit across the whole repository on every MR; my modules ride along with everyone else's. For my own pre-MR confidence, I re-run the same scanner locally **scoped to `pengajuan/`** before I push, so that the global job's red flag (if any) is never a surprise to me.
+
+The local invocation is one line:
+
+```bash
+bandit -r pengajuan/ -x pengajuan/tests/,pengajuan/migrations/
+```
+
+`-x` excludes test fixtures and migration files. Tests intentionally use assertions and mock factories that Bandit (correctly) flags as `B101 assert_used` in a production context; suppressing those at scan time is cleaner than adding `# nosec` to every test file. Migrations are auto-generated and irrelevant to security review.
+
+### Output
+
+Current run on the working tree: **1278 LOC scanned, zero findings, zero `#nosec` markers added.**
+
+![Bandit local scan output for pengajuan: 0 issues across 1278 LOC](/images/bandit-pengajuan-output.png)
+
+This is the right standard for this sprint. The pengajuan module does not need any `# nosec` justifications, which means there is nothing Bandit flagged that I had to argue with. If a future change introduces something the scanner doesn't like, the right response is the same discipline as the blog that inspired this post: fix the root cause first, only fall back to `# nosec` with an inline comment explaining the specific reason and reviewer who acknowledged it.
+
+The complement Bandit (SAST) makes with Schemathesis (DAST) is the same as the [OWASP guidance on Application Security Testing](https://owasp.org/www-project-web-security-testing-guide/): static analysis reads the code without running it; dynamic analysis runs the server without reading its code. Both catch different classes of issue, and the cost of running both is dominated by CI minutes, not engineering attention.
+
+## How the four compose
 
 Each technique covers a dimension the others structurally cannot:
 
@@ -266,8 +288,9 @@ Each technique covers a dimension the others structurally cannot:
 | Stakeholder-readable behavior | pytest-bdd | Status rules drift between product intent and code |
 | API contract vs implementation | Schemathesis (DAST) | Endpoints return undocumented status codes or invalid response shapes |
 | Performance regression under concurrency | Locust ramp + threshold | A merge silently doubles p95 latency of a flow |
+| Static security analysis | Bandit (SAST, teammate-owned) | Unsafe patterns in my own code before they ship |
 
-The existing layers (unit, integration, mutation, coverage, SAST) catch what they catch. None of them catches any of the three above. The full picture of the pengajuan feature after this sprint:
+The full picture of the pengajuan feature after this sprint:
 
 ```
 flake8 / SonarQube       → style + maintainability
@@ -278,11 +301,10 @@ mutmut 3.x               → assertion quality
 pytest-bdd (NEW)         → stakeholder intent
 Schemathesis (NEW)       → OpenAPI contract drift / DAST
 Locust ramp + threshold  → flow-level latency regression
-─────────────────────────────────────────────────────
-Bandit (team-mate)       → SAST on Python source
+Bandit (verified locally)→ SAST on Python source
 ```
 
-The four lines above the divider already existed. The four below are what this sprint added (one of them by my teammate). The combination is what produces actual confidence at merge time, not the sum of any individual layer.
+The four lines above the divider already existed. The four below are what this sprint added: three I built end-to-end, one I re-verified locally to make sure my code clears the gate the teammate configured globally. The combination is what produces actual confidence at merge time, not the sum of any individual layer.
 
 ## What each technique does NOT catch
 
@@ -305,9 +327,17 @@ Same anti-overclaim discipline as the mutmut post. None of these is a silver bul
 - Database lock contention under write-heavy load (our ramp is read-heavy).
 - Anything network-level outside the application (TLS handshake, CDN cache miss).
 
+**Bandit does not catch:**
+
+- Logic-level vulnerabilities. Bandit flags `eval(user_input)` but cannot tell you whether your authorisation check is correct.
+- Issues that only manifest at runtime. Bandit reads the AST; it does not see request/response shapes — that is what Schemathesis is for.
+- Custom security-sensitive helpers Bandit does not know about. Project-specific patterns need either a custom Bandit plugin or a code review.
+
 The combination still leaves gaps: a slow endpoint with a contract violation under load attributes to no single tool cleanly. That is what manual exploratory testing and production observability (see [previous post on Prometheus instrumentation]({{< ref "post/monitoring-pengajuan-prometheus.md" >}})) are for.
 
-## Reflection: which of the three was worth the effort
+## Reflection: which of the four was worth the effort
+
+**Worth it: Bandit (local re-run).** Cheapest of the four to verify (one command, zero new CI work — the global job already runs). Zero `# nosec` markers added to `pengajuan/` means the pre-MR gate is a non-event for me, which is exactly what you want from a SAST gate: invisible when there is nothing to do, loud when there is.
 
 **Worth it: BDD.** The biggest surprise was how cheap the framework setup was (one line in `requirements.txt`, no new CI job, runs as part of `pytest`) compared to how much the Gherkin files improved discussion with non-engineers reviewing the MR. The cost is writing the feature files, and that cost is amortized because each file doubles as documentation.
 
