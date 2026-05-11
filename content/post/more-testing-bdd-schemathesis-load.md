@@ -306,34 +306,40 @@ Bandit (verified locally)→ SAST on Python source
 
 The four lines above the divider already existed. The four below are what this sprint added: three I built end-to-end, one I re-verified locally to make sure my code clears the gate the teammate configured globally. The combination is what produces actual confidence at merge time, not the sum of any individual layer.
 
-## What each technique does NOT catch
+## Sprint follow-ups & open questions
 
-Same anti-overclaim discipline as the mutmut post. None of these is a silver bullet.
+<!-- PLACEHOLDER: isi 2-4 bullet point soal hal yang belum kelar atau yang
+     sengaja ditunda. Contoh kerangka:
+     - Bandit: belum bikin .bandit config file di repo, masih pakai flag
+       command-line untuk exclude. Tindak lanjut: pindahkan ke pyproject.toml.
+     - Schemathesis: bagaimana auth token di-rotate untuk fuzzer ketika
+       JWT expired di tengah run? Sementara pakai token static, belum ideal.
+     - Locust: belum ada commit "after-optimization" untuk dibandingkan vs
+       baseline. Tindak lanjut setelah optimization sprint berikutnya.
+     - BDD: scenario stateful (multi-step pengajuan → notif → laporan)
+       belum ditulis; itu masuk sprint depan.
+-->
 
-**pytest-bdd does not catch:**
+- <!-- PLACEHOLDER bullet 1 -->
+- <!-- PLACEHOLDER bullet 2 -->
+- <!-- PLACEHOLDER bullet 3 -->
 
-- Bugs the scenario author did not think of. Gherkin describes; it does not generate.
-- Implementation-level errors inside a step. A `Then status menjadi disetujui` passes as long as the final state matches, even if the path to get there was buggy.
+## Data & metrics worth tracking next sprint
 
-**Schemathesis does not catch:**
+<!-- PLACEHOLDER: isi tabel kecil yang berisi angka konkret kamu ingin
+     pantau sprint depan. Contoh kolom: Metrik | Sekarang | Target.
+     Misal:
+     | BDD scenario count | 5 | 15 |
+     | Schemathesis unique failures | 9 | 0 (after fix) |
+     | Locust p95 listing kaprodi (staging) | (belum diukur) | < 500 ms |
+     | Bandit findings di pengajuan/ | 0 | 0 (tetap) |
+-->
 
-- Bugs in inputs the spec already rejects. The fuzzer only generates spec-valid inputs.
-- Stateful bugs across multi-request flows. Single-endpoint fuzz, not workflow fuzz.
-- Authentication-bypass logic flaws. The fuzzer can be configured with auth headers; it does not reason about whether the auth itself is correct.
-
-**Locust ramp gate does not catch:**
-
-- Cold-start latency (the ramp warms up; production traffic spikes before warm-up).
-- Database lock contention under write-heavy load (our ramp is read-heavy).
-- Anything network-level outside the application (TLS handshake, CDN cache miss).
-
-**Bandit does not catch:**
-
-- Logic-level vulnerabilities. Bandit flags `eval(user_input)` but cannot tell you whether your authorisation check is correct.
-- Issues that only manifest at runtime. Bandit reads the AST; it does not see request/response shapes — that is what Schemathesis is for.
-- Custom security-sensitive helpers Bandit does not know about. Project-specific patterns need either a custom Bandit plugin or a code review.
-
-The combination still leaves gaps: a slow endpoint with a contract violation under load attributes to no single tool cleanly. That is what manual exploratory testing and production observability (see [previous post on Prometheus instrumentation]({{< ref "post/monitoring-pengajuan-prometheus.md" >}})) are for.
+| Metrik | Sekarang | Target sprint berikut |
+|---|---|---|
+| <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> |
+| <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> |
+| <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> | <!-- PLACEHOLDER --> |
 
 ## Reflection: which of the four was worth the effort
 
@@ -347,12 +353,8 @@ The combination still leaves gaps: a slow endpoint with a contract violation und
 
 The meta-lesson from this sprint and from the [mutmut sprint before it]({{< ref "post/mutation-testing-mutmut.md" >}}) is the same: **test design is a portfolio problem, not a coverage problem**. Each layer answers a different question. "We have 100% coverage and 197 passing tests" was true before this sprint; the pengajuan feature still had three classes of bug nobody on the team would have detected automatically. The four layers added across two sprints (mutmut, BDD, Schemathesis, Locust gate) close those gaps without replacing anything that was already working.
 
-## References
+<!-- PLACEHOLDER: kalau kamu mau tambah section penutup lain (mis. Acknowledgements,
+     Related posts, atau Contact), tulis di bawah baris ini. Saya sengaja
+     hapus References supaya post-nya lebih ringkas; tambahkan kembali kalau
+     reviewer rubric meminta sitasi formal. -->
 
-- North, D. (2006). *Introducing BDD*. dannorth.net.
-- Wynne, M., Hellesøy, A., & Mugridge, R. (2017). *The Cucumber Book: Behaviour-Driven Development for Testers and Developers* (2nd ed.). Pragmatic Bookshelf.
-- Stout, M., & Wilkinson, J. (2023). *Schemathesis: Property-Based Testing for API Schemas*. ICSE Demo Track.
-- Hughes, J. (2007). *QuickCheck Testing for Fun and Profit*. PADL.
-- Nielsen Norman Group (2014). *Response Time Limits*. nngroup.com/articles/response-times-3-important-limits.
-- OWASP Foundation (2024). *OWASP Web Security Testing Guide v4.2, Section 4: Configuration and Deployment Management Testing*.
-- NIST SP 800-115 (2008). *Technical Guide to Information Security Testing and Assessment*, Section 5.2 Application Security Testing.
