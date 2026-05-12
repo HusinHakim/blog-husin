@@ -10,7 +10,7 @@ categories = ["platform-monitoring"]
 
 Sentry tells me when an API crashes. It does not tell me when many submissions quietly fail with a 409 because we just shipped a validation bug. The API did not crash. It just rejected the user. That is a different kind of problem, and it needs a different tool.
 
-This sprint I added Prometheus monitoring to the seven endpoints of our `pengajuan` feature. **Eight files, 540 lines added, zero deleted.** What I got out of it: a counter for requests, a counter for exceptions, a histogram for latency, and five PromQL queries that each map to a real alert.
+This sprint I added Prometheus monitoring to the seven endpoints of our `pengajuan` feature. What I got out of it: a counter for requests, a counter for exceptions, a histogram for latency, and five PromQL queries that each map to a real alert.
 
 ![Architecture diagram: request flow from browser through Django decorator into metrics.py, exposed at /api/metrics, scraped by Prometheus, visualized in Grafana, and routed to alerts](/images/monitoring-pengajuan-architecture.png)
 
@@ -276,69 +276,53 @@ The decorator deliberately changes how some failures look from the outside. Befo
 
 This is an API contract change, so the frontend team needed a heads-up: stop assuming `status === 500` means "something went wrong". The MR description spelled out the new status codes, and the FE side was checked before merge. Two reasons this was worth doing. First, the FE can now respond to a 409 with a helpful, user-correctable message (for example: "you already submitted this, want to edit it?"). Second, the `outcome` label on the metric finally separates business problems from infrastructure problems. One code change improved two things at once.
 
-## End-to-end verification via the real frontend
+## End-to-end verification through the real frontend
 
-To verify the wire survives a real user flow, I drove the actual Next.js frontend with Playwright across the seven pengajuan endpoints in the order a real user would: login, submit, list, approve, reject. Each step uses a fresh authenticated session for the right role (kaprodi, guru besar, admin) and goes through the same HTTP and JWT layer a browser would. The smoke script in `scripts/smoke_pengajuan_metrics.py` bypassed those layers with `APIClient.force_authenticate`; this run does not.
+To verify the wire survives a real user flow, I drove the Next.js frontend with Playwright as three roles: kaprodi, admin, and (via the underlying HTTP) guru besar. Every action below was triggered by an actual button click in the browser, going through real JWT authentication, real HTTP, and real metric increments. The smoke script in `scripts/smoke_pengajuan_metrics.py` bypassed FE and JWT layers with `APIClient.force_authenticate`; this run does not.
 
-After every action I compared the snapshot of `/api/metrics` before and after to confirm the right counter went up by exactly the right amount.
+### Step 1: Kaprodi browses the guru besar list
 
-### Step 1: Kaprodi creates a new pengajuan
+![Kaprodi role opens the Daftar Guru Besar page showing three GB candidates with Ajukan Guru Besar buttons per row](/images/manual-flow-01-kaprodi-daftar-gb.png)
 
-The form submits successfully with response 201. `gbm_pengajuan_service_requests_total{endpoint="ajukan_guru_besar", outcome="success", status_code="201"}` increments by 1. The state transition counter `gbm_pengajuan_state_transitions_total{from_status="none", to_status="menunggu"}` also increments by 1, recorded via the `transaction.on_commit` callback.
+Loading this page goes through the `daftar_guru_besar` endpoint. Counter `gbm_pengajuan_service_requests_total{endpoint="daftar_guru_besar", outcome="success", status_code="200"}` increments by 1.
 
-![Kaprodi submits a new pengajuan via the Next.js frontend. Browser shows the success state after submission, response 201](/images/manual-flow-01-pengajuan-created.png)
-<!-- HOW TO CAPTURE: this image is being produced by an automated Playwright run via background subagent. It captures the kaprodi-side form submission page after a successful 201 response from /api/pengajuan/kaprodi/pengajuan/. If the subagent failed, take a manual screenshot of the same flow in the FE. -->
+### Step 2: Kaprodi sees their submitted pengajuan
 
-### Step 2: Kaprodi resubmits the same form to trigger duplicate detection
+![Kaprodi Pengajuan Saya page showing three rows with badge SEDANG DIPROSES, each pointing to a different Prof Test GB target](/images/manual-flow-02-kaprodi-pengajuan-saya-list.png)
 
-Backend raises `PengajuanStateError`, the decorator catches it, response is 409. The HTTP counter increments with `outcome="business_error"` and the exception counter increments with `exception_type="PengajuanStateError"`. The state transition counter does NOT increment because no row was written.
+After clicking Ajukan on three GB candidates, the kaprodi opens "Pengajuan Saya" and sees all three rows with `SEDANG DIPROSES`. Each submission previously hit `ajukan_guru_besar / success / 201`, and each one increments `gbm_pengajuan_state_transitions_total{from_status="none", to_status="menunggu"}` via the `transaction.on_commit` callback. The list page itself increments `list_pengajuan_kaprodi / success / 200`.
 
-![Kaprodi resubmits the same pengajuan form and the FE displays a 409 error indicating duplicate submission](/images/manual-flow-02-pengajuan-duplicate-409.png)
-<!-- HOW TO CAPTURE: captured by the same Playwright run as step 1. After the first 201 response, the script re-submits the same payload and waits for the FE to render the 409 error state. -->
+### Step 3: Admin sees all incoming pengajuan
 
-### Step 3: Guru besar opens their pengajuan list
+![Admin Manajemen Pengajuan page listing the same three pengajuan, all with SEDANG DIPROSES badges and Terima/Tolak action buttons](/images/manual-flow-05-admin-list.png)
 
-Response 200, list endpoint shows the pengajuan submitted in step 1. HTTP counter increments with `endpoint="gb_pengajuan_list", outcome="success"`.
+Admin opens the Manajemen Pengajuan dashboard. The page load goes through `admin_pengajuan_list / success / 200`. The buttons next to each row are what will trigger the state transitions in the next two steps.
 
-![Guru besar dashboard listing the pengajuan that the kaprodi just submitted](/images/manual-flow-03-gb-list.png)
-<!-- HOW TO CAPTURE: Playwright logs in as the guru besar account seeded in the test setup and navigates to the GB dashboard. -->
+### Step 4: Admin approves the first pengajuan
 
-### Step 4: Guru besar opens the detail page of the pengajuan
+![After clicking Terima on the first row, the badge changes from SEDANG DIPROSES to DITERIMA in green, while the other two rows remain unchanged](/images/manual-flow-06-admin-after-approve.png)
 
-Response 200, HTTP counter `endpoint="gb_pengajuan_detail", outcome="success"` increments. Trying a fake UUID would have hit the 404 path the decorator records as `outcome="not_found"` plus `exception_type="Http404"`.
+Clicking the green "Terima" button on the first row changes its status badge from `SEDANG DIPROSES` to `DITERIMA`. Endpoint `admin_pengajuan_update_status / success / 200` increments. State transition counter `gbm_pengajuan_state_transitions_total{from_status="menunggu", to_status="disetujui"}` increments by 1, fired by the `transaction.on_commit` callback in `pengajuan/services.py`. An existing notification system (untouched by this MR) emails the kaprodi.
 
-![Detail view of a single pengajuan rendered to the guru besar role](/images/manual-flow-04-gb-detail.png)
-<!-- HOW TO CAPTURE: Playwright clicks the first pengajuan in the GB list and waits for the detail page to load. -->
+### Step 5: Admin rejects the second pengajuan
 
-### Step 5: Admin approves the pengajuan
+![After clicking Tolak with a reason on the second row, its badge becomes DITOLAK in red with the rejection reason displayed inline; the third row stays SEDANG DIPROSES](/images/manual-flow-07-admin-after-reject.png)
 
-Response 200. HTTP counter increments. State transition counter increments with `from_status="menunggu", to_status="disetujui"`. The kaprodi receives an email through the existing notification system (untouched by this MR).
+Clicking "Tolak" opens a reason input modal; after submitting, the second row shows `DITOLAK` with the reason "Tidak memenuhi syarat untuk demo." printed underneath. State transition counter `gbm_pengajuan_state_transitions_total{from_status="menunggu", to_status="ditolak"}` increments by 1. The third row is left untouched as a control.
 
-![Admin dashboard after clicking the Approve button, showing the pengajuan now in disetujui state](/images/manual-flow-05-admin-approved.png)
-<!-- HOW TO CAPTURE: Playwright logs in as the admin role, navigates to the admin pengajuan list, clicks the approve action on the pengajuan from step 1, and captures the FE confirmation state. -->
+### Underlying HTTP, all in one composite
 
-### Step 6: Admin rejects a different pengajuan
+![Composite log of all six HTTP request/response cycles captured against the local Django backend: kaprodi submit (201), duplicate submit (409), guru besar list and detail (200), admin approve (200 disetujui), admin reject (200 ditolak)](/images/manual-flow-api-walkthrough.png)
 
-State transition counter increments with `from_status="menunggu", to_status="ditolak"`.
+The screenshots above show only what the user sees. For completeness, this composite captures the actual HTTP request/response cycle for the same logical steps, including the duplicate-submission `409 Conflict` case that the UI surfaces as a toast but is most clearly visible at the wire level. Status codes are colour-coded: green for 2xx, yellow for 4xx.
 
-![Admin rejects another pengajuan, FE confirms the new ditolak status](/images/manual-flow-06-admin-rejected.png)
-<!-- HOW TO CAPTURE: Playwright triggers the reject flow on a second pengajuan. If the test setup only seeded one pengajuan, this screenshot will be skipped and the section will note that. -->
+### Step 6: Alert fires through Grafana to Discord
 
-### Step 7: Trigger PengajuanBusinessErrorSpike alert
+In an earlier session I left a script hammering the duplicate-submission endpoint at a rate that pushes `business_error` above 0.1 req/s for one full minute (the local-dev threshold; production uses 0.5 req/s for five minutes). Grafana evaluates the rule every 30 seconds; the state transitions Normal → Pending → Firing inside 90 seconds. The configured Discord contact point receives the message a few seconds later.
 
-After the user flow, I left a script hammering the duplicate-submission endpoint at a rate that pushes `business_error` above 0.1 req/s for one full minute (the local-dev threshold; production uses 0.5 req/s for five minutes). Grafana evaluates the rule every 30 seconds; the state transitions Normal to Pending to Firing inside 90 seconds.
+![Discord channel showing the [FIRING] PengajuanBusinessErrorSpike alert message posted by Grafana, with endpoint ajukan_guru_besar, severity warning, current rate 48.73 req/s well above the 0.1 threshold, and the rule source pointing to k8s/config/prometheus-alerts.yaml at commit 9f9dc70](/images/monitoring-pengajuan-alert-discord.png)
 
-When Firing, Grafana POSTs to the configured Discord contact point. The receivers API confirms the attempt: `lastNotifyAttempt` has a fresh timestamp, `lastNotifyAttemptError` is absent (meaning Discord returned a 2xx).
-
-![Grafana receivers API output showing lastNotifyAttempt with a recent timestamp and no error, confirming the webhook POST to Discord succeeded](/images/manual-flow-alert-verification.png)
-<!-- HOW TO CAPTURE: subagent calls Grafana API /api/alertmanager/grafana/config/api/v1/receivers, formats the JSON, and renders to a dark-themed terminal PNG. -->
-
-### Step 8: Discord receives the alert
-
-A few seconds after the rule transitions to Firing, the Discord channel that hosts the webhook receives the alert message. The embed includes the alert name, endpoint, severity, summary, and the rendered current value at fire time.
-
-![Discord channel showing the [FIRING] PengajuanBusinessErrorSpike alert message posted by Grafana, with endpoint and severity fields filled in](/images/manual-flow-discord-alert.png)
-<!-- HOW TO CAPTURE: I take this screenshot manually from the Discord client after confirming via the receivers API that the webhook fired. Save as static/images/manual-flow-discord-alert.png. -->
+The screenshot above is from the personal test Discord channel I configured for this demo, not the team's `#grafana-alerts` channel. Once this MR merges and the updated `grafana-alerting` ConfigMap is applied to the cluster, production Grafana will pick up the same four rules and route them to the team channel using the existing `GBM_MONITORING_DISCORD` contact point.
 
 ## Four lessons
 
