@@ -220,6 +220,49 @@ The second message (21:54) is a separate manual sanity check: a curl directly to
 
 A production deploy is the next step. Once the rules from `k8s/config/prometheus-alerts.yaml` are picked up by the team's production Prometheus and the team's Grafana is pointed at them, the team's existing `#grafana-alerts` channel will start receiving these pengajuan-specific alerts on top of the generic project-wide 5xx counter that already runs there.
 
+## Extension: tracking state transitions as business events
+
+After review, a teammate pointed out that the HTTP-level metrics above count requests but do not count *what those requests do to the business state*. A 200 response on `admin_pengajuan_update_status` could mean an approval, a rejection, or a status revert. The HTTP layer cannot tell them apart, and a PM-facing dashboard needs that distinction.
+
+The follow-up is one more Counter at the service layer:
+
+```python
+PENGAJUAN_STATE_TRANSITIONS_TOTAL = Counter(
+    "gbm_pengajuan_state_transitions_total",
+    "Business state transitions of pengajuan grouped by from_status and to_status.",
+    ["from_status", "to_status"],
+)
+```
+
+Three transitions get instrumented:
+- Creation: `from_status="none"`, `to_status="menunggu"` (kaprodi submits)
+- Approval: `from_status="menunggu"`, `to_status="disetujui"` (admin approves)
+- Rejection: `from_status="menunggu"`, `to_status="ditolak"` (admin rejects)
+
+### The detail that matters: `transaction.on_commit`
+
+If you call the counter inside `transaction.atomic()` and the transaction rolls back, the counter would still hold the increment. That is a phantom count: the database never changed, but the metric thinks it did. Over time this corrupts your dashboards in a way that is hard to detect.
+
+The fix is `transaction.on_commit()`, which queues a callback to run *after* the transaction commits successfully:
+
+```python
+with transaction.atomic():
+    old_status = pengajuan.status
+    pengajuan.status = new_status
+    pengajuan.save()
+    transaction.on_commit(
+        lambda: record_pengajuan_state_transition(old_status, new_status)
+    )
+```
+
+If the `with` block exits via exception (rollback), the callback never fires. The counter stays accurate.
+
+A dedicated test enforces this property: open a `transaction.atomic()` block, force `transaction.set_rollback(True)`, exit the block, then assert the counter is unchanged. Without `on_commit`, that test would fail.
+
+### Two layers, two audiences
+
+The HTTP-level metrics (request rate, p95 latency, exception counts) are good for SREs answering "is the service healthy right now". The business-level metric (state transitions) is good for PMs answering "how many pengajuan get approved per week, what is the rejection ratio". Same Prometheus, same Grafana, but the two metrics serve different questions and live at different layers of the code (decorator vs service function).
+
 ## This changes some response codes (intentionally)
 
 The decorator deliberately changes how some failures look from the outside. Before this MR, a few endpoints returned a generic 500 for business problems that should have been 409 or 404. After this MR:
