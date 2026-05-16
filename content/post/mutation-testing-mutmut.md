@@ -151,15 +151,15 @@ mutmut 3.5's trampoline binds the original function's default before forwarding 
 
 ![Round 3 results](/images/round3-final.png)
 
-| File | Survived (R1) | Killed | Equivalent | Score |
-|---|---|---|---|---|
-| pengajuan/permissions.py | 2 | 2 | 0 | **100%** |
-| kegiatan/services.py | 4 | 4 | 0 | **100%** |
-| statistik_prodi/services.py | 7 | 4 | 3 | 97.3% |
-| pengajuan/services.py | 8 | 6 | 2 | 95.7% |
-| **Total in scope** | **21** | **16** | **5** | **97.6%** |
+| File | Survived (R1) | Killed by new tests | Killed on re-run | Equivalent | Score |
+|---|---|---|---|---|---|
+| pengajuan/permissions.py | 2 | 2 | 0 | 0 | **100%** |
+| kegiatan/services.py | 4 | 4 | 0 | 0 | **100%** |
+| pengajuan/services.py | 8 | 6 | 0 | 2 | 95.7% |
+| statistik_prodi/services.py | 7 | 0 | 4 | 3 | 97.3% |
+| **Total in scope** | **21** | **12** | **4** | **5** | **97.6%** |
 
-10 new tests landed across 3 commits. Four other files (kegiatan/permissions, periode/permissions, notification/services, authentication/services) still have unresolved survivors from Round 1, and they're the next iteration.
+10 new tests landed across **3 commits** (one per file with test additions). The 4 "killed on re-run" mutants in `statistik_prodi/services.py` were flaky in the Round 1 baseline and got killed naturally when the test suite ran again, without any code change. No commit was needed for them. Four other files (kegiatan/permissions, periode/permissions, notification/services, authentication/services) still have unresolved survivors from Round 1, and they're the next iteration.
 
 The decision to defer them was deliberate, and there's a specific timing reason. **Profiling and the associated optimization work is scheduled at the end of this sprint**, and the files most likely to get touched by that work are exactly the heavier services (notification, authentication, kegiatan/permissions). Writing load-bearing tests on those files now, then having the production code change underneath during optimization, would invalidate the assertions and waste the effort. The plan is to come back to them once the optimization is merged, then run mutmut on the updated code.
 
