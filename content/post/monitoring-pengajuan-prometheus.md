@@ -15,14 +15,23 @@ This sprint I added Prometheus monitoring to the seven endpoints of our `pengaju
 
 {{< mermaid >}}
 flowchart LR
-    Client["Browser / Client"]
-    Django["Django view<br/>+ @handle_pengajuan_service_exceptions"]
-    Metrics["metrics.py<br/>Counter + Histogram"]
-    Endpoint["/api/metrics<br/>Prometheus exposition"]
-    Prom[("Prometheus<br/>time-series DB")]
-    Grafana["Grafana<br/>panels + alert rules"]
-    Discord["Discord channel<br/>(GBM_MONITORING_DISCORD)"]
+    Client["Browser /<br/>Client"]
     Maintainer((Maintainer))
+
+    subgraph App["Application (Django backend)"]
+        direction LR
+        Django["View handler<br/>@handle_pengajuan_service_exceptions"]
+        Metrics["metrics.py<br/>Counter + Histogram"]
+        Endpoint["/api/metrics<br/>exposition"]
+    end
+
+    subgraph Stack["Observability stack"]
+        direction LR
+        Prom[("Prometheus<br/>time-series DB")]
+        Grafana["Grafana<br/>panels + alert rules"]
+    end
+
+    Discord["Discord channel<br/>GBM_MONITORING_DISCORD"]
 
     Client -- "HTTP request" --> Django
     Django -- "observe()" --> Metrics
@@ -30,22 +39,11 @@ flowchart LR
     Endpoint -- "scrape every 15s" --> Prom
     Prom -- "datasource" --> Grafana
     Grafana -- "dashboard" --> Maintainer
-    Grafana -- "PromQL eval + webhook" --> Discord
-    Discord -- "alert" --> Maintainer
+    Grafana -. "webhook when firing" .-> Discord
+    Discord -. "notify" .-> Maintainer
 
-    classDef app fill:#1f3a5f,stroke:#0d1b2a,color:#fff
-    classDef exposition fill:#bf6b1f,stroke:#3d1f00,color:#fff
-    classDef storage fill:#a8530c,stroke:#3d1f00,color:#fff
-    classDef visualize fill:#1f5f3a,stroke:#0d2a1b,color:#fff
-    classDef notify fill:#1f5f3a,stroke:#0d2a1b,color:#fff
-    classDef neutral fill:#e8e8e8,stroke:#333,color:#000
-
-    class Django,Metrics app
-    class Endpoint exposition
-    class Prom storage
-    class Grafana visualize
-    class Discord notify
-    class Client,Maintainer neutral
+    style App fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style Stack fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
 {{< /mermaid >}}
 
 *Request flow: browser hits a Django view wrapped by `@handle_pengajuan_service_exceptions`, the decorator calls `observe()` on the Counter and Histogram defined in `metrics.py`, those metrics are exposed at `/api/metrics` and scraped by Prometheus every 15s. Grafana reads the resulting time-series both for dashboards and for the four Grafana-managed alert rules, which fire to the team's `GBM_MONITORING_DISCORD` contact point when thresholds are breached.*
