@@ -1,123 +1,132 @@
 +++
-title = "Refactoring is not enough: I added architectural fitness functions so the cleanup actually sticks"
+title = "Architectural fitness functions: making the rules a CI gate, not a wish"
 date = "2026-05-20"
 author = "Husin Hidayatul"
-description = "Three Fowler-named refactorings on the pengajuan and kegiatan apps, plus a diff-scan fitness function job in GitLab CI that prevents the cleanup from quietly rotting back into the codebase."
+description = "After three refactor commits I asked: what stops the cleanup from quietly rotting? The answer was a set of architectural fitness functions in GitLab CI, scoped with diff-scan so the team can still merge."
 toc = true
-tags = ["refactoring", "design-patterns", "fitness-functions", "django", "ci-cd", "architecture"]
+tags = ["fitness-functions", "evolutionary-architecture", "django", "ci-cd", "gitlab", "refactoring"]
 categories = ["software-architecture"]
 +++
 
-I refactored three pieces of the `pengajuan` and `kegiatan` apps this sprint. After the third commit landed, a question got stuck in my head: **what stops the next teammate, or me three weeks from now, from putting all of this back the way it was?** A clean diff today is worthless if the same smell quietly grows back into the codebase tomorrow.
+I shipped three small refactor commits on the `pengajuan` and `kegiatan` apps this sprint. Three days later I realized the cleanup is fragile: nothing stops the next teammate, or me on a Friday afternoon, from putting an `.objects.filter(...)` back into a view. Code review is human, and humans get tired.
 
-This post is about the answer: a small set of **architectural fitness functions** running in GitLab CI on every merge request. Refactor once, then put a guardrail behind it.
+This post is about the answer I settled on: **architectural fitness functions** running in GitLab CI on every merge request. A refactor without a guardrail is half the job.
 
-![Cover diagram: a refactored module with a small gate labeled "fitness function" between it and an arrow representing future commits](/images/refactoring-cover.png)
+![Cover diagram: a refactored module on the left with three small gates labeled "fitness function" between it and a stream of future commits arriving from the right](/images/fitness-cover.png)
 
-## Where the rubric pointed me
+## The term, in one paragraph
 
-The PPL rubric for this sprint asked specifically for **Martin Fowler refactoring** plus **common enterprise organization patterns** like DTO, Service layer, and Repository layer. Fowler's two relevant books map almost one-to-one onto those phrases: *Refactoring* (1999, 2nd ed. 2018) for the named refactorings and code smells, *Patterns of Enterprise Application Architecture* (2002) for the layer patterns. Together they describe how to fix structural problems and how to prevent them.
+The phrase **architectural fitness function** comes from Neal Ford and Rebecca Parsons, *Building Evolutionary Architectures* (O'Reilly, 2017), with a foreword by Martin Fowler. The term itself is borrowed from evolutionary computing, where a fitness function scores how close a candidate solution is to ideal. Applied to architecture, it is **an automated, objective check that the system still satisfies a chosen architectural characteristic**. Where unit tests answer *"does the code behave correctly?"*, fitness functions answer *"is the code still organized the way we agreed to organize it?"*.
 
-The rubric also asked for **diff commits**. Fowler is opinionated about this. Refactoring in his methodology means **small, behavior-preserving steps with tests staying green between each one**. A single 2000-line "refactor PR" is not Fowler-style. Three focused commits are.
+![Two-panel diagram. Left panel: unit test asking "does the code do the right thing?". Right panel: fitness function asking "is the code organized the right way?". Below each, an example test snippet.](/images/fitness-vs-unit-test.png)
 
-![Two-column slide: left "what the rubric asks", right "what Fowler's two books actually deliver", with arrows mapping between them](/images/refactoring-rubric-map.png)
+Fowler has been writing about this idea, under different names, for two decades: *Tradeable Quality Attributes*, *Architecturally-Significant Requirements*, the **Reversibility** principle in his "Evolutionary Architecture" essay. Ford and Parsons gave it a single term and an operational definition.
 
-## What I refactored, in three commits
+## Why I needed one
 
-I picked three smells that recurred in `pengajuan/` and `kegiatan/` and that each map to a different named refactoring. Each commit is small, ships green tests, and can be reverted independently.
+Before adding fitness functions, my situation was the classic refactor-rot trap:
 
-### Commit 1: Extract M2MSyncService — remove Duplicated Code across three services
+| State | What protects it? |
+|---|---|
+| Commit 1 — extracted `M2MSyncService` to remove duplicated sync logic | Nothing |
+| Commit 2 — introduced `PengajuanRepository` so views stop touching the ORM | Nothing |
+| Commit 3 — unified error-handling decorator across both apps | Nothing |
 
-`kegiatan/services.py` had three sibling services (`KegiatanKaprodiService`, `KegiatanGuruBesarService`, `KegiatanJenisKegiatanService`) whose `sync_*` methods were structurally identical. The same diff-existing-vs-new, delete-missing, bulk-create-new pattern was repeated three times with only the FK field name changing.
+A Sonar dashboard would tell me, **eventually**, that smells were creeping back. A dashboard is a report. I wanted a **gate**: a job that fails the pipeline and blocks merge the moment a rule is broken, with a precise message pointing at the offending line.
 
-> **Smell:** *Duplicate Code* (Fowler ch.3)
-> **Refactoring:** *Form Template Method* + *Parameterize Function*
-> **Rule of Three** is satisfied: the pattern appears three times. Fowler's heuristic says wait for the third occurrence before extracting, to avoid premature abstraction.
+![Comparison: top row "Sonar dashboard" shows a delayed weekly trend chart with an arrow saying "regression visible 7 days later". Bottom row "Fitness function" shows a red X on a single MR with arrow saying "merge blocked, 30 seconds after push"](/images/fitness-dashboard-vs-gate.png)
 
-![Side-by-side diff: three identical sync methods on the left, one parameterized M2MSyncService on the right](/images/refactor-commit1-m2m-sync.png)
+## The Ford & Parsons taxonomy, briefly
 
-### Commit 2: Introduce PengajuanRepository — separate persistence from views and serializers
+Fitness functions are not one thing. Ford and Parsons categorize them along several axes; the two that mattered for me:
 
-`AdminPengajuanSerializer._get_related_lookup_value` fell back to `model.objects.filter(...)` inside the serializer. `views_admin._build_lookup_maps` queried three tables directly. `views_kaprodi.ajukan_guru_besar` did its own ORM calls. The ORM was leaking across every layer.
+- **Triggered** (runs on a discrete event like an MR) vs **Continuous** (runs against production traffic, e.g. latency budgets). Mine are all triggered, because that's where CI lives.
+- **Atomic** (checks one rule on one piece of code) vs **Holistic** (checks an emergent property across the system, like end-to-end latency). Mine are all atomic, intentionally; emergent rules are powerful but easier to write wrong, and I wanted my first set to be obviously correct.
 
-> **Smell:** *Feature Envy* + *Inappropriate Intimacy* (views and serializers knowing too much about the database)
-> **Pattern (Fowler, PoEAA):** *Repository* — abstract the collection of domain objects so the consumer just asks for them by intent (`for_admin_listing(ids)`), not by query syntax.
+![A 2x2 grid: rows triggered/continuous, columns atomic/holistic. Each quadrant has one short example. My four rules are clustered in the triggered+atomic quadrant.](/images/fitness-ford-taxonomy.png)
 
-![Layered diagram: views and serializers no longer reach down to ORM, both go through PengajuanRepository, which is the only layer that touches Django ORM](/images/refactor-commit2-repository-layer.png)
+This is a useful frame when defending the design to a reviewer or a lecturer: *"I deliberately chose triggered+atomic for the first generation. Holistic latency fitness comes after the Prometheus stack is mature."*
 
-### Commit 3: Unify error-handling decorator across pengajuan and kegiatan
+## The four rules I wrote
 
-`pengajuan/` used a clean decorator `@handle_pengajuan_service_exceptions` (`pengajuan/decorators.py:42`). `kegiatan/` used a closure helper `_execute_with_standard_error_handling` that wrapped each handler. Two different mental models for the same cross-cutting concern.
+All four live in `tests/test_architecture.py`, run by the same pytest the rest of the suite already uses, and depend on nothing beyond Python's `ast` module. Total cost: about 90 lines of test code.
 
-> **Smell:** *Shotgun Surgery* (any change to error policy required edits in two places, two styles)
-> **Refactoring:** *Substitute Algorithm* + *Move Function*. The kegiatan helper becomes a decorator with the same shape as pengajuan's. Both apps now share one mental model for HTTP error mapping plus Prometheus metric emission.
+### Rule 1: views must not query the ORM directly
 
-![Before/after of a kegiatan view: closure-wrapped handler becomes a flat handler with a decorator on top](/images/refactor-commit3-decorator-unification.png)
+The Repository pattern I introduced in commit 2 only matters if it's the only path. The rule scans `pengajuan/views/` and `kegiatan/views/` and asserts no file contains `.objects.`. Violations name the file and a suggested fix.
 
-Three commits, three different refactoring names, three different smells. That covers the **Level 3 rubric** requirement of *minimum three different cases with diff commit*.
+```python
+def test_views_tidak_query_orm_langsung():
+    pelanggaran = []
+    for file in _python_files("pengajuan/views"):
+        if ".objects." in file.read_text(encoding="utf-8"):
+            pelanggaran.append(str(file))
+    assert not pelanggaran, (
+        f"View masih query ORM langsung: {pelanggaran}. "
+        "Pakai PengajuanRepository / PengajuanService."
+    )
+```
 
-## The question I had after commit 3
+![Pytest output panel: top frame green (state today), bottom frame red after adding a single line Pengajuan.objects.filter(...) to a view, with the exact assertion message visible](/images/fitness-rule1-views.png)
 
-Code review is human. People get tired. The same smell I just removed can come back in two weeks, and nobody is going to scan 3000 lines per MR to catch it.
+### Rule 2: serializer `get_*` methods must not access the database
 
-I have a Sonar job in the pipeline already. Sonar reports on the whole codebase, with a delay. It's a dashboard, not a gate. What I wanted was **a gate**: a CI job that fails the merge if a specific architectural rule is broken.
+Serializer methods that hit the DB cause N+1 in any `many=True` listing. The rule walks each `serializers.py` with `ast`, finds methods starting with `get_`, and checks the unparsed source for `.objects.`.
 
-This is the idea of a **fitness function**.
+```python
+for node in ast.walk(tree):
+    if isinstance(node, ast.FunctionDef) and node.name.startswith("get_"):
+        if ".objects." in ast.unparse(node):
+            pelanggaran.append(f"{file}::{node.name}")
+```
 
-## Architectural fitness functions, in one paragraph
+![A code snippet from pengajuan/serializers.py showing a get_periode_name method with Periode.objects.get(...), and below it the test output flagging "serializers.py::get_periode_name"](/images/fitness-rule2-serializer.png)
 
-The term comes from Neal Ford and Rebecca Parsons, *Building Evolutionary Architectures* (2017), with a foreword written by Martin Fowler. The term itself is borrowed from evolutionary computing, where a fitness function scores how close a solution is to ideal. Applied to software architecture, a fitness function is **an automated test that checks whether your codebase still satisfies a chosen architectural constraint**. Unit tests check behavior; fitness functions check structure.
+### Rule 3: no function longer than the current budget
 
-![Side-by-side diagram: unit test asks "does the code do the right thing?" while fitness function asks "is the code organized the right way?"](/images/fitness-function-vs-unit-test.png)
+*Long Method* is the recurring smell I fight every sprint. This rule walks every `*.py` in the two apps, computes each function's `end_lineno - lineno`, and asserts no function exceeds the budget.
 
-## The four fitness functions I added
+The budget is intentionally loose at the start so existing legacy passes. It **ratchets down** sprint by sprint. The honest narrative I tell my lecturer: *the rule is a slope, not a snapshot*.
 
-All four live in `tests/test_architecture.py`, run by the same pytest the rest of the suite uses, and require no extra dependencies beyond Python's `ast` module.
+![Bar chart of function lengths sorted descending across the two apps. A horizontal line marks the threshold. A few bars cross the line and are highlighted in red; below the chart, the same chart from a future sprint shows the threshold lowered and the longest bar shorter.](/images/fitness-rule3-long-method.png)
 
-### 1. Views must not query the ORM directly
+### Rule 4: apps must not import each other's internals
 
-After commit 2, the rule is: views call the Repository, never `.objects.`. The fitness function scans `pengajuan/views/` and `kegiatan/views/` and fails if any file contains a direct ORM call.
+`pengajuan` and `kegiatan` can depend on each other's `models.py` (the public contract), but never on each other's `services.py` or `views/`. This protects module boundaries and prevents accidental cyclic coupling.
 
-![Pytest output showing the test green, then a diff that adds Pengajuan.objects.get(...) to a view, then the same test red with a precise file:line message](/images/fitness-1-views-no-orm.png)
+```python
+TERLARANG = (
+    "from kegiatan.services", "from kegiatan.views",
+    "from pengajuan.services", "from pengajuan.views",
+)
+```
 
-### 2. Serializer `get_*` methods must not access the database
-
-Serializer methods that hit the DB cause N+1 in `many=True` listings. The function walks each `serializers.py` with `ast`, finds methods starting with `get_`, and asserts `.objects.` does not appear in the unparsed source.
-
-![Highlighted section of pengajuan/serializers.py with a get_periode_name method, and a fitness function output flagging the line](/images/fitness-2-serializer-no-db.png)
-
-### 3. No method longer than N lines
-
-`Long Method` is the smell I keep fighting. This function parses every `*.py` in the two apps with `ast`, computes `end_lineno - lineno` per function, and asserts no function exceeds the budget. The threshold starts loose (so the legacy code passes) and ratchets down over sprints.
-
-![Bar chart of function lengths sorted descending, with a horizontal threshold line, and the few bars poking above the line highlighted in red](/images/fitness-3-long-method-budget.png)
-
-### 4. Apps must not import each other's internals
-
-`pengajuan` and `kegiatan` can depend on each other's models (public contract), but never on each other's `services.py` or `views/`. This protects module boundaries and prevents cyclic coupling.
-
-![Module diagram: green arrows for allowed dependencies (model imports), red arrows crossed out for forbidden dependencies (service-to-service across apps)](/images/fitness-4-module-boundaries.png)
+![A two-app boundary diagram. Green arrows are allowed (model-to-model). Red crossed-out arrows are forbidden (service-to-service or view-to-view across apps).](/images/fitness-rule4-boundaries.png)
 
 ## The legacy code wall, and how to step around it
 
-The first time I ran the strict version of rule 1 against the real codebase, **seven files failed**. If I committed that and merged, the entire team's pipeline would be red until every legacy view was refactored. Sprint last sprint, this would have made me the enemy.
+The first time I ran rule 1 against the real codebase, **seven files failed**. Committing that and turning on `allow_failure: false` would turn the entire team's pipeline red until every legacy view was refactored. In the last sprint, that's how you become the enemy.
 
-Standard solutions, ranked from blunt to elegant:
+Standard solutions for this exact problem, ranked from blunt to elegant:
 
-1. **Whitelist** the seven files explicitly with a TODO comment. Works, gets ignored, accumulates.
-2. **Threshold/budget**: assert `len(violations) <= 7` and ratchet the number down each sprint. Visible progress.
-3. **Ratchet file**: store the count in a tracked JSON, fail if it ever goes up. Effective but heavier setup.
-4. **Diff-scan**: only check the files actually changed in the current MR. Pre-existing legacy is invisible. **Only new violations fail.**
+| Strategy | What it does | When it fits |
+|---|---|---|
+| **Whitelist** | List the legacy files explicitly, ignore them | <5 files, with TODO owner |
+| **Threshold/Budget** | Assert `len(violations) <= N`, lower N each sprint | Visible progress, simple, no infra |
+| **Ratchet file** | Store the count in tracked JSON, fail if it ever goes up | Long-running projects |
+| **Diff-scan** | Only check files actually changed in the current MR | Most fair, matches existing `diff-cover` style |
 
-I went with diff-scan, because it matches a pattern already in our pipeline. The `diff_coverage` job in `.gitlab-ci.yml` uses `diff-cover --fail-under=100` against the MR's target branch. Same philosophy: don't punish people for legacy they didn't write, but don't let them add new debt either.
+I picked **diff-scan**. Two reasons.
 
-![Two-panel diagram: left panel "full scan" highlights every legacy violation in red, right panel "diff scan" highlights only the lines changed in this MR](/images/fitness-diff-scan-vs-full-scan.png)
+**One:** it matches a pattern already in our pipeline. The `diff_coverage` job in `.gitlab-ci.yml` uses `diff-cover --fail-under=100` against the MR's target branch. The team's mental model is already there. Same philosophy: don't punish people for legacy they didn't write, but never let them add new debt.
 
-This is the *boy scout rule* from Robert C. Martin (often quoted by Fowler): **leave the code cleaner than you found it**. Not perfect, just cleaner.
+**Two:** it embodies the **boy scout rule** that Robert C. Martin formalized and that Fowler frequently echoes: *leave the code cleaner than you found it*. Not perfect. Cleaner.
+
+![Two-panel illustration. Left "full scan": every legacy violation across the codebase shown in red, overwhelming. Right "diff scan": only the lines changed in the current MR highlighted, with the rest greyed out. A tiny new violation in the diff is flagged.](/images/fitness-diff-vs-full-scan.png)
 
 ## GitLab CI integration
 
-The new job sits in the existing `quality` stage, right next to `diff_coverage` and `sonarqube`. It needs no new image and adds about 15 seconds to the pipeline.
+The new job sits inside the existing `quality` stage, next to `diff_coverage` and `sonarqube`. No new Docker image. The whole thing adds about 15 seconds to the pipeline.
 
 ```yaml
 architecture_fitness:
@@ -138,46 +147,47 @@ architecture_fitness:
   allow_failure: false
 ```
 
-`allow_failure: false` is deliberate. A warning-only job gets ignored within a week.
+`allow_failure: false` is the part that matters. A warning-only job gets muted within a week. The whole point is to be a **gate**, not advice.
 
-![GitLab pipeline view with the architecture_fitness job sitting between diff_coverage and sonarqube, both states shown: all green on top, fitness function red on the bottom with a click-through to the precise failing assertion](/images/fitness-gitlab-pipeline.png)
+![GitLab pipeline view, two stacked screenshots: top shows all green including architecture_fitness; bottom shows the same pipeline with architecture_fitness red, expanded to show the precise assertion message](/images/fitness-gitlab-pipeline.png)
 
-## A live demo I can show to the dosen
+## A 90-second demo that lands
 
-The most convincing demo is also the simplest:
+The clearest demo to a lecturer is also the simplest:
 
-1. Open the project. Pipeline green on `main`.
-2. Open a fresh MR. Add one line to a view: `Pengajuan.objects.filter(status="disetujui")`.
-3. Push. Watch the `architecture_fitness` job go red with this output:
+1. Open the project. Pipeline on `main` is green.
+2. Open a fresh MR. Add **one line** to a view: `Pengajuan.objects.filter(status="disetujui")`.
+3. Push. Watch the `architecture_fitness` job go red within 30 seconds:
    ```
    AssertionError: View pengajuan masih query ORM langsung:
      pengajuan/views/views_kaprodi.py
    Pakai PengajuanRepository / PengajuanService.
    ```
-4. Try to click Merge. GitLab blocks it because the pipeline failed.
-5. Remove the line. Pipeline green again. Merge unblocks.
+4. Try to click **Merge**. GitLab blocks it because the pipeline failed.
+5. Remove the line. Pipeline green. Merge unblocks.
 
-![Three-panel timeline screenshot: MR opened green, MR with violating commit red with the blocking merge button greyed out, MR fixed and mergeable again](/images/fitness-demo-block-merge.png)
+![Three-frame timeline: frame 1 "MR opened, green", frame 2 "violating commit pushed, red, merge button greyed out with a small lock icon", frame 3 "violation removed, green again, merge button live"](/images/fitness-demo-block-merge.png)
 
-That sequence is the entire Fowler thesis compressed into 90 seconds: **refactoring is not a one-time cleanup, it is an ongoing capability the team needs infrastructure for.**
+This sequence is the whole thesis compressed: **architecture is a property the team must continuously defend, not a one-time deliverable**.
 
-## Where fitness functions hurt, and when not to use them
+## What fitness functions are not
 
-Fowler and Ford both warn against treating any pattern as universal. Fitness functions have real liabilities:
+Fowler, Ford, and Parsons all warn against treating any pattern as universal. Fitness functions have real liabilities I want to name explicitly, because pretending they don't is what turns a useful tool into theater.
 
-- **Premature rules become noise.** If you write a rule before there is a real refactor protecting it, the rule is opinion theater. Each fitness function in my set followed an actual refactoring commit.
-- **Strictness must match team agreement.** Adding `allow_failure: false` without discussion turns a code quality tool into an interpersonal conflict. I floated each rule on the team channel before flipping the gate.
-- **Static analysis has blind spots.** My rule 1 catches `.objects.` but not a creative aliased import. A determined developer can always work around a rule. Fitness functions raise the cost of regression; they don't eliminate it.
-- **Legacy whitelisting can become permanent.** Diff-scan dodges this, but if you ever add a manual whitelist, put a TODO with an owner and a date.
+**They are not a substitute for code review.** A fitness function catches mechanical violations. It cannot evaluate a design decision, judge naming, or notice that a clever workaround defeats the rule's spirit. Use fitness functions to **automate the boring checks** so reviewers spend time on judgment.
 
-The Fowler-style version of this answer: **rules exist to serve the code, not the other way around**. A rule that consistently blocks legitimate work is a wrong rule. Remove it or rewrite it.
+**They are not a substitute for refactoring.** A rule that gates a codebase before the refactor exists is opinion theater. Every rule in my set sits behind a real refactor commit that made the rule achievable. Rule 1 follows commit 2 (Repository extraction), not the other way around.
+
+**They are not free of false positives.** My rule 1 catches `.objects.` literally. A determined developer can write `OBJ = Pengajuan.objects; OBJ.filter(...)` and slip past. Static analysis raises the cost of regression; it doesn't eliminate it. The team-agreement layer underneath the rule is what really enforces it.
+
+**They are not free for the team.** Each rule is a contract you're asking everyone to honor. Adding a rule without discussion turns a code-quality tool into an interpersonal conflict. I floated each rule on the team channel before flipping `allow_failure: false`. Sometimes the answer was *"good rule, but lower the threshold first"* — that's the rule working as intended.
 
 ## What I learned
 
-**Refactoring without a guardrail is half the job.** Three clean commits feel productive in the moment, then erode silently in the next sprint when someone, under deadline pressure, takes the shortcut you just removed.
+**A refactor without a guardrail is half the job.** Three clean commits feel productive in the moment, then erode silently a few sprints later. The guardrail is what makes the cleanup worth the time.
 
-**A fitness function is a refactoring's seatbelt.** It does not improve the code by itself. It keeps the improvement in place while everyone keeps moving fast.
+**A fitness function is a refactor's seatbelt.** It doesn't make the code better by itself. It keeps the improvement in place while the team keeps moving fast.
 
-**Fowler's "small steps" idea scales to architecture, not just code.** Each fitness function is small, parameterizable, and reversible. Adding one is itself a small, reversible step. The same methodology that produced the three refactoring commits produced the four fitness functions on top of them.
+**Fowler's "small steps" idea scales to architecture, not just code.** Each fitness function is small, parameterizable, and reversible. Adding one is itself a small, reversible step. The same methodology that produced the three refactor commits produced the four fitness functions on top of them.
 
-For the next sprint I want to tighten rule 3's threshold by 10 lines, add a fifth rule about cyclomatic complexity using `radon`, and start trending the rule-3 violation count on a small Grafana panel so the team sees the slope. The improvement was never a single PR. It is a slope.
+For the next iteration I want to tighten rule 3's budget by 10 lines, add a fifth rule about cyclomatic complexity using `radon`, and start trending the violation counts on a tiny Grafana panel so the team sees the slope, not just the snapshot. The goal was never a single perfect commit. The goal is a downward slope, maintained.
