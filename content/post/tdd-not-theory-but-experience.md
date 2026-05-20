@@ -99,45 +99,34 @@ The re-upload corner case came from a simple question: what happens if the Admin
 
 ## Finding Corner Cases: From Hunch to Method
 
-For the first few sprints, my corner cases came from gut feel. I'd write the positive and negative paths, then sit back and ask, "what would be weird?" That works sometimes, but it leans entirely on whether I happen to remember a tricky scenario. The Advanced Programming module on TDD names this exact failure mode: most teams either miss edge cases entirely or write too many redundant invalid-path tests that don't actually probe a new behavior (Ichlasul Affan, *Module 04: Test-Driven Development & Refactoring*, Advanced Programming, Fasilkom UI, 2024).
-
-The module introduces a small toolbox for picking corner cases on purpose. Two ideas reshaped how I write tests on this project.
+Early on, my corner cases came from gut feel: write the happy and sad paths, then guess what might break. That misses cases I haven't seen before and piles up redundant tests of cases I have. The Advanced Programming module on TDD (Ichlasul Affan, *Module 04: TDD & Refactoring*, Fasilkom UI, 2024) gives names and methods to what used to be intuition.
 
 ### The +1 / -1 Strategy: Boundary Value Analysis
 
-Boundary Value Analysis (BVA) starts by splitting a function's input into **valid** and **invalid** partitions (equivalence partitioning). For every partition, you test five values: the lowest, lowest + 1, middle, highest - 1, and highest. The reasoning is empirical: bugs cluster near the edges, not in the middle, because that's where the implementor most often gets `<` vs `<=` wrong.
+Split the input into valid and invalid partitions, then for each partition test five values: `min`, `min + 1`, `middle`, `max - 1`, `max`. Bugs cluster at edges because that's where `<` vs `<=` mistakes live.
 
 {{< mermaid >}}
 flowchart LR
-    I1["less than min<br/>(invalid)"]:::inv --> B1["min"]:::bnd
-    B1 --> B2["min + 1"]:::bnd
-    B2 --> M["middle"]:::mid
-    M --> B4["max - 1"]:::bnd
-    B4 --> B5["max"]:::bnd
-    B5 --> I2["greater than max<br/>(invalid)"]:::inv
+    I1["< min<br/>(invalid)"]:::inv --> B1["min"]:::bnd --> B2["min + 1"]:::bnd --> M["middle"]:::mid --> B4["max - 1"]:::bnd --> B5["max"]:::bnd --> I2["> max<br/>(invalid)"]:::inv
 
     classDef inv fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
     classDef bnd fill:#dcfce7,stroke:#16a34a,color:#14532d
     classDef mid fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
 {{< /mermaid >}}
 
-The file-size check from Upload Sertifikat is a textbook BVA case. Limit: 5 MB. Valid partition: above 0 and at most 5 MB. Invalid partition: above 5 MB. The mutation testing finding I described earlier, that I had no test distinguishing "exactly 5 MB accepted" from "5 MB + 1 byte rejected", was BVA quietly telling me which tests were missing. Once I started planning corner cases with BVA in mind, those gaps stopped surviving to the mutmut report.
+The 5 MB file-size check is textbook BVA. My early test suite accepted a 1 MB file and rejected a 10 MB file, but never asserted "exactly 5 MB passes, 5 MB + 1 byte fails." mutmut found the gap before I did. For multi-parameter functions the module adds **Single Fault Assumption**: fix all but one parameter at the middle, vary only one. That's `4n + 1` tests, not exponential.
 
-For functions with more than one parameter, the module recommends **Single Fault Assumption**: hold all but one parameter at its middle value, vary the remaining one through its extremes. For `n` parameters this gives `4n + 1` tests instead of an exponential explosion.
+### Beyond Numeric Edges
 
-### Where BVA Fails: Functionality-Driven Cases
+BVA only knows inputs, not behavior. Four other lenses I picked up while building reupload (SCRUM-251):
 
-BVA only looks at inputs. It doesn't know what the function is supposed to **do**. The module uses a triangle classifier as the cautionary example. With three side-length parameters, BVA varies one side at a time and keeps the other two equal, so it never produces a Scalene triangle like `(a=3, b=4, c=5)`. The Scalene branch goes untested even with a "complete" BVA suite.
+- **Output enumeration.** The module's triangle example: BVA holds two sides equal, so Scalene `(3, 4, 5)` never fires. Ask: does every reachable result have a test driving it?
+- **Invariants across actions.** Reupload must update `content` and `updated_at` but leave `created_at` alone. That's not an input edge, it's a property that holds before and after. One assertion per invariant.
+- **Side-effect absence.** When the duplicate-sertifikat guard triggers, Supabase upload must **not** be called. Easy to forget, cheap to test: `mock_upload.assert_not_called()`.
+- **Garbage input outside the type.** Sending `"not-a-uuid"` as `kegiatan_id` should return 400, not 500. BVA tests valid UUIDs at the size boundary, this tests inputs that aren't UUIDs at all.
+- **Regression guards.** Adding PUT for reupload meant POST started returning 409 "Gunakan PUT" instead of silently overwriting. I locked that new contract in a test so the next person can't quietly roll it back.
 
-I hit the same pattern with the re-upload corner case. The "what happens if Admin uploads the certificate twice" question isn't about input boundaries at all, it's a question about **state**: a Sertifikat already exists for this kegiatan, what should happen next? BVA wouldn't have surfaced it. Talking through the business rules with the team did. Myers, Badgett, and Sandler call this manual gap-filling **Error Guessing** (*The Art of Software Testing*, 3rd ed., 2012), and the module makes the same point: don't lean on a single modelling method.
-
-So my corner-case checklist by the end of the project looked like this:
-
-1. Apply BVA to every numeric or length-bounded input. Mechanical, catches the `<` vs `<=` class of bugs.
-2. Enumerate the output possibilities. Does every reachable result have at least one test driving it? Catches Scalene-style gaps.
-3. Ask team-level questions about state, idempotency, and concurrent actors. Catches the re-upload kind.
-
-The mutation score going from "many survivors" in early sprints to single-digit survivors by the end tracks almost exactly with adopting steps 1 and 2.
+Myers, Badgett, and Sandler call this grab-bag **Error Guessing** (*The Art of Software Testing*, 3rd ed., 2012): the cases you only find by knowing the domain, not the schema. The module's rule and mine end up the same: don't lean on a single method. BVA closed the numeric-edge survivors in mutmut; the other four lenses closed the rest.
 
 ## Mocks Are Not a Cheat, They're a Design Choice
 
