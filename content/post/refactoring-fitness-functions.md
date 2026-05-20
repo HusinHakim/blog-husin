@@ -21,16 +21,12 @@ The approach I want to write about: **architectural fitness functions running in
 
 ## A bit of backstory
 
-In Advanced Programming we spent a chunk of the semester on **Martin Fowler's** work: the named refactorings (Extract Method, Move Function, Replace Conditional with Polymorphism), the smell catalog (Long Method, Feature Envy, Inappropriate Intimacy), and the enterprise patterns from *Patterns of Enterprise Application Architecture* like **Service Layer**, **Repository**, and **DTO**. Lots of vocabulary, all of it useful.
-
-Going back to Fowler's writing this sprint while preparing my refactoring submission, one line kept landing harder than the rest:
+Advanced Programming gave me Fowler's vocabulary: refactorings like Extract Method, smells like Long Method, patterns like Service Layer and Repository. Useful, but all about cleaning code **once**. Re-reading Fowler this sprint, one line stuck:
 
 > *"Any fool can write code that a computer can understand. Good programmers write code that humans can understand."*  
 > — Martin Fowler, *Refactoring* (1999)
 
-He's saying code is read far more often than it is written, so the design has to be **maintained continuously**, not just shipped once. That framing exposed a gap in how I'd been thinking about the course material: class taught me how to clean code *today* (Extract Method, Move Function, etc.). Nothing taught me how to make sure the code **stays clean tomorrow**, after the next teammate, the next deadline, the next "just one quick fix".
-
-That gap is what this post is about. The fix lives in a different but Fowler-adjacent book, *Building Evolutionary Architectures* by Neal Ford and Rebecca Parsons (foreword by Fowler), where the concept of an **architectural fitness function** is introduced.
+Code is read far more than written, so the design has to **stay** clean, not just start clean. The gap that opens up: class taught me how to refactor today; nothing taught me how to keep it clean tomorrow. The answer turns out to be in a Fowler-adjacent book, *Building Evolutionary Architectures* (Ford & Parsons, foreword by Fowler) — the concept of an **architectural fitness function**.
 
 ## What's a fitness function, in one paragraph
 
