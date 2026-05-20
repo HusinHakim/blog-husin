@@ -1,97 +1,84 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 340" font-family="ui-monospace, Menlo, Consolas, monospace">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 340" font-family="ui-monospace, Menlo, Consolas, monospace">
   <defs>
-    <marker id="arrowDark" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
-      <path d="M0,0 L10,5 L0,10 Z" fill="#586e75"/>
-    </marker>
-    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+    <marker id="arrGreen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
       <path d="M0,0 L10,5 L0,10 Z" fill="#859900"/>
     </marker>
-    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+    <marker id="arrRed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
       <path d="M0,0 L10,5 L0,10 Z" fill="#dc322f"/>
     </marker>
   </defs>
 
-  <!-- LEFT: clean codebase -->
-  <g transform="translate(40, 90)">
-    <rect width="220" height="160" rx="10" fill="#ffffff" stroke="#859900" stroke-width="2"/>
-    <text x="110" y="28" text-anchor="middle" font-size="13" fill="#073642" font-weight="bold">main branch</text>
-    <line x1="20" y1="40" x2="200" y2="40" stroke="#eee8d5" stroke-width="1"/>
-    <text x="20" y="62" font-size="11" fill="#268bd2">views.py</text>
-    <text x="34" y="80" font-size="10" fill="#586e75">repo.list_all()</text>
-    <text x="20" y="102" font-size="11" fill="#268bd2">serializers.py</text>
-    <text x="34" y="120" font-size="10" fill="#586e75">return ctx[id]</text>
-    <text x="110" y="148" text-anchor="middle" font-size="11" fill="#859900" font-weight="bold">clean and enforced</text>
+  <!-- Title -->
+  <text x="460" y="28" text-anchor="middle" font-size="16" fill="#073642" font-weight="bold">
+    Architectural fitness function: one rule, two outcomes
+  </text>
+
+  <!-- ============================================ -->
+  <!-- LANE 1 (top): bad MR, blocked -->
+  <!-- ============================================ -->
+  <g transform="translate(0, 60)">
+    <!-- Left: MR card with bad code -->
+    <rect x="20" y="0" width="280" height="90" rx="8" fill="#ffffff" stroke="#dc322f" stroke-width="2"/>
+    <text x="160" y="22" text-anchor="middle" font-size="12" fill="#073642" font-weight="bold">MR adds ORM to a view</text>
+    <text x="35" y="50" font-size="11" fill="#586e75">def list_pengajuan(req):</text>
+    <text x="50" y="68" font-size="11" fill="#dc322f">  Pengajuan.objects.filter(...)</text>
+    <text x="50" y="82" font-size="10" fill="#586e75">  return Response(...)</text>
+
+    <!-- Arrow into gate -->
+    <path d="M 300 45 L 388 45" stroke="#586e75" stroke-width="1.6" fill="none" marker-end="url(#arrRed)"/>
+
+    <!-- Middle: gate -->
+    <rect x="390" y="10" width="170" height="70" rx="6" fill="#fff59d" stroke="#b58900" stroke-width="2"/>
+    <text x="475" y="38" text-anchor="middle" font-size="13" fill="#073642" font-weight="bold">fitness function</text>
+    <text x="475" y="58" text-anchor="middle" font-size="10" fill="#586e75">checks: no .objects.</text>
+    <text x="475" y="72" text-anchor="middle" font-size="10" fill="#586e75">in views layer</text>
+
+    <!-- Arrow out red -->
+    <path d="M 560 45 L 648 45" stroke="#dc322f" stroke-width="2" stroke-dasharray="6,3" fill="none" marker-end="url(#arrRed)"/>
+
+    <!-- Right: blocked outcome -->
+    <rect x="650" y="0" width="250" height="90" rx="8" fill="#fdf6e3" stroke="#dc322f" stroke-width="2"/>
+    <circle cx="690" cy="45" r="16" fill="#dc322f"/>
+    <text x="690" y="51" text-anchor="middle" font-size="18" fill="#ffffff" font-weight="bold">X</text>
+    <text x="720" y="38" font-size="13" fill="#dc322f" font-weight="bold">Pipeline red</text>
+    <text x="720" y="56" font-size="11" fill="#586e75">Merge button disabled.</text>
+    <text x="720" y="72" font-size="11" fill="#586e75">Author moves query</text>
+    <text x="720" y="86" font-size="11" fill="#586e75">to repository, retries.</text>
   </g>
 
-  <!-- MIDDLE: gate -->
-  <g transform="translate(360, 60)">
-    <rect width="160" height="220" rx="6" fill="#fdf6e3" stroke="#b58900" stroke-width="3"/>
-    <rect x="20" y="20" width="120" height="60" rx="4" fill="#fff59d" stroke="#b58900" stroke-width="1.5"/>
-    <text x="80" y="46" text-anchor="middle" font-size="12" fill="#073642" font-weight="bold">fitness</text>
-    <text x="80" y="64" text-anchor="middle" font-size="12" fill="#073642" font-weight="bold">function</text>
+  <!-- Divider -->
+  <line x1="40" y1="178" x2="880" y2="178" stroke="#eee8d5" stroke-width="1"/>
 
-    <text x="80" y="110" text-anchor="middle" font-size="10" fill="#586e75">scan diff</text>
-    <text x="80" y="126" text-anchor="middle" font-size="10" fill="#586e75">check rules</text>
-    <text x="80" y="142" text-anchor="middle" font-size="10" fill="#586e75">assert clean</text>
+  <!-- ============================================ -->
+  <!-- LANE 2 (bottom): good MR, merged -->
+  <!-- ============================================ -->
+  <g transform="translate(0, 200)">
+    <!-- Left: MR card with good code -->
+    <rect x="20" y="0" width="280" height="90" rx="8" fill="#ffffff" stroke="#859900" stroke-width="2"/>
+    <text x="160" y="22" text-anchor="middle" font-size="12" fill="#073642" font-weight="bold">MR uses the repository</text>
+    <text x="35" y="50" font-size="11" fill="#586e75">def list_pengajuan(req):</text>
+    <text x="50" y="68" font-size="11" fill="#859900">  PengajuanRepository.list()</text>
+    <text x="50" y="82" font-size="10" fill="#586e75">  return Response(...)</text>
 
-    <rect x="20" y="160" width="120" height="40" rx="4" fill="#ffffff" stroke="#586e75" stroke-width="1.5"/>
-    <text x="80" y="178" text-anchor="middle" font-size="10" fill="#586e75">GitLab CI</text>
-    <text x="80" y="192" text-anchor="middle" font-size="10" fill="#cb4b16" font-weight="bold">allow_failure: false</text>
-  </g>
+    <!-- Arrow into gate -->
+    <path d="M 300 45 L 388 45" stroke="#586e75" stroke-width="1.6" fill="none" marker-end="url(#arrGreen)"/>
 
-  <!-- RIGHT: incoming MR queue -->
-  <g transform="translate(620, 30)">
-    <text x="120" y="14" text-anchor="middle" font-size="12" fill="#073642" font-weight="bold">incoming MRs</text>
+    <!-- Middle: gate (same as top) -->
+    <rect x="390" y="10" width="170" height="70" rx="6" fill="#fff59d" stroke="#b58900" stroke-width="2"/>
+    <text x="475" y="38" text-anchor="middle" font-size="13" fill="#073642" font-weight="bold">fitness function</text>
+    <text x="475" y="58" text-anchor="middle" font-size="10" fill="#586e75">checks: no .objects.</text>
+    <text x="475" y="72" text-anchor="middle" font-size="10" fill="#586e75">in views layer</text>
 
-    <!-- MR 1 clean -->
-    <rect x="0" y="30" width="240" height="38" rx="4" fill="#ffffff" stroke="#859900" stroke-width="1.5"/>
-    <text x="14" y="54" font-size="11" fill="#586e75">MR 142 refactor service</text>
-    <circle cx="220" cy="49" r="9" fill="#859900"/>
-    <text x="220" y="53" text-anchor="middle" font-size="11" fill="#ffffff" font-weight="bold">OK</text>
+    <!-- Arrow out green -->
+    <path d="M 560 45 L 648 45" stroke="#859900" stroke-width="2" fill="none" marker-end="url(#arrGreen)"/>
 
-    <!-- MR 2 clean -->
-    <rect x="0" y="82" width="240" height="38" rx="4" fill="#ffffff" stroke="#859900" stroke-width="1.5"/>
-    <text x="14" y="106" font-size="11" fill="#586e75">MR 143 add throttle</text>
-    <circle cx="220" cy="101" r="9" fill="#859900"/>
-    <text x="220" y="105" text-anchor="middle" font-size="11" fill="#ffffff" font-weight="bold">OK</text>
-
-    <!-- MR 3 BAD -->
-    <rect x="0" y="134" width="240" height="38" rx="4" fill="#fdf6e3" stroke="#dc322f" stroke-width="1.5"/>
-    <text x="14" y="158" font-size="11" fill="#586e75">MR 144 .objects.filter in view</text>
-    <circle cx="220" cy="153" r="9" fill="#dc322f"/>
-    <text x="220" y="157" text-anchor="middle" font-size="11" fill="#ffffff" font-weight="bold">X</text>
-
-    <!-- MR 4 clean -->
-    <rect x="0" y="186" width="240" height="38" rx="4" fill="#ffffff" stroke="#859900" stroke-width="1.5"/>
-    <text x="14" y="210" font-size="11" fill="#586e75">MR 145 fix typo</text>
-    <circle cx="220" cy="205" r="9" fill="#859900"/>
-    <text x="220" y="209" text-anchor="middle" font-size="11" fill="#ffffff" font-weight="bold">OK</text>
-
-    <!-- MR 5 BAD -->
-    <rect x="0" y="238" width="240" height="38" rx="4" fill="#fdf6e3" stroke="#dc322f" stroke-width="1.5"/>
-    <text x="14" y="262" font-size="11" fill="#586e75">MR 146 cross-app import</text>
-    <circle cx="220" cy="257" r="9" fill="#dc322f"/>
-    <text x="220" y="261" text-anchor="middle" font-size="11" fill="#ffffff" font-weight="bold">X</text>
-  </g>
-
-  <!-- Arrows: MRs flow into gate -->
-  <g stroke-width="1.6" fill="none">
-    <path d="M 620 49 L 525 110" stroke="#859900" marker-end="url(#arrowGreen)"/>
-    <path d="M 620 101 L 525 130" stroke="#859900" marker-end="url(#arrowGreen)"/>
-    <path d="M 620 153 L 525 160" stroke="#dc322f" stroke-dasharray="6,3" marker-end="url(#arrowRed)"/>
-    <path d="M 620 205 L 525 180" stroke="#859900" marker-end="url(#arrowGreen)"/>
-    <path d="M 620 257 L 525 200" stroke="#dc322f" stroke-dasharray="6,3" marker-end="url(#arrowRed)"/>
-  </g>
-
-  <!-- Arrow from gate to main branch (only clean ones pass) -->
-  <g>
-    <path d="M 360 170 L 270 170" stroke="#859900" stroke-width="2.5" fill="none" marker-end="url(#arrowGreen)"/>
-    <text x="315" y="160" text-anchor="middle" font-size="10" fill="#859900">merged</text>
-  </g>
-
-  <!-- Bounce-back arrow showing blocked MRs -->
-  <g>
-    <path d="M 360 230 L 540 230" stroke="#dc322f" stroke-width="2" stroke-dasharray="6,3" fill="none" marker-end="url(#arrowRed)"/>
-    <text x="450" y="222" text-anchor="middle" font-size="10" fill="#dc322f">blocked, return to author</text>
+    <!-- Right: merged outcome -->
+    <rect x="650" y="0" width="250" height="90" rx="8" fill="#fdf6e3" stroke="#859900" stroke-width="2"/>
+    <circle cx="690" cy="45" r="16" fill="#859900"/>
+    <text x="690" y="52" text-anchor="middle" font-size="16" fill="#ffffff" font-weight="bold">✓</text>
+    <text x="720" y="38" font-size="13" fill="#859900" font-weight="bold">Pipeline green</text>
+    <text x="720" y="56" font-size="11" fill="#586e75">Merge unblocked,</text>
+    <text x="720" y="72" font-size="11" fill="#586e75">change reaches main</text>
+    <text x="720" y="86" font-size="11" fill="#586e75">with the rule intact.</text>
   </g>
 </svg>
