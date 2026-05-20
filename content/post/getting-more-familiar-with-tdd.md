@@ -138,21 +138,15 @@ The distinction between **stub** and **mock** comes down to the **direction of t
 
 {{< mermaid >}}
 flowchart LR
-    DB[("real<br/>Database")]:::ext
-    STUB["<b>STUB</b><br/>returns canned data"]:::stub
-    SUT(["System<br/>under test"]):::sut
-    MOCK["<b>MOCK</b><br/>records the call<br/>for verification"]:::mock
-    SMTP["real<br/>SMTP server"]:::ext
+    DB[("Database")]:::ext
+    SUT(["System under test"]):::sut
+    SMTP["SMTP server"]:::ext
 
-    DB -. "intercepted" .-> STUB
-    STUB == "data IN<br/>INCOMING" ==> SUT
-    SUT == "side effect OUT<br/>OUTGOING" ==> MOCK
-    MOCK -. "intercepted" .-> SMTP
+    DB -- "Retrieve data &nbsp;(STUB)" --> SUT
+    SUT -- "Send an email &nbsp;(MOCK)" --> SMTP
 
-    classDef sut fill:#1e293b,stroke:#0f172a,color:#fff,font-weight:bold,stroke-width:3px
-    classDef ext fill:#e2e8f0,stroke:#94a3b8,color:#64748b
-    classDef mock fill:#fde68a,stroke:#d97706,color:#78350f,font-weight:bold,stroke-width:2px
-    classDef stub fill:#bfdbfe,stroke:#2563eb,color:#1e3a8a,font-weight:bold,stroke-width:2px
+    classDef sut fill:#cbd5e1,stroke:#475569,color:#0f172a,font-weight:bold,stroke-width:2px
+    classDef ext fill:#9ca3af,stroke:#4b5563,color:#fff,font-weight:bold
 {{< /mermaid >}}
 
 A **stub** replaces a dependency that returns data the test needs to proceed: the Supabase client returns a URL so the rest of `SertifikatService` can keep running. A **mock** replaces a dependency that performs a side effect the test needs to verify: assert the storage upload was never called when the duplicate-sertifikat guard tripped. In `unittest.mock` and Mockito the same object plays both roles, but the intent in the test should still be obvious from how it's used.
