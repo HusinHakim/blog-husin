@@ -2,16 +2,16 @@
 title = "Applying TDD in a Real Project: Not Theory, but Experience"
 date = "2026-04-23"
 author = "Husin Hidayatul"
-description = "Notes from shipping an Upload Sertifikat feature with the RED-GREEN-REFACTOR discipline. Three test categories, mock placement, coverage, and mutation testing."
+description = "Notes from several sprints applying TDD on the Guru Besar Mengajar project: three test categories, the +1 / -1 boundary strategy, mock placement, and what mutation testing exposed."
 toc = true
-tags = ["tdd", "testing", "django", "mutation-testing", "qa"]
+tags = ["tdd", "testing", "django", "mutation-testing", "boundary-value-analysis", "qa"]
 categories = ["software-testing"]
 mermaid = true
 +++
 
 Honestly, I used to feel that TDD was a waste of time. Why write tests first when the feature doesn't even exist yet?
 
-That mindset changed when I started working on the Upload Sertifikat feature in the Guru Besar Mengajar project. On the surface, the feature isn't complex: an Admin uploads a PDF, it's stored in Supabase, then Kaprodi and Guru Besar can download it. But the business rules pile up quickly, and that's where TDD started paying off.
+That mindset shifted over several sprints on the Guru Besar Mengajar project. None of the features are exotic on the surface, uploading certificates, managing periode, syncing kegiatan, recording attendance. But each one carries a thicket of business rules, and that's where writing tests first started paying for itself. This post collects what I learned about TDD across the project, with concrete examples drawn mostly from the Upload Sertifikat feature, because that's where the rules were densest.
 
 ## The First Moment That Clicked
 
@@ -96,6 +96,48 @@ def test_reupload_overwrites_existing_certificate(self):
 ```
 
 The re-upload corner case came from a simple question: what happens if the Admin uploads the wrong certificate? Should it error out? Or overwrite? That business decision belongs in a test, not as a hidden assumption inside the code.
+
+## Finding Corner Cases: From Hunch to Method
+
+For the first few sprints, my corner cases came from gut feel. I'd write the positive and negative paths, then sit back and ask, "what would be weird?" That works sometimes, but it leans entirely on whether I happen to remember a tricky scenario. The Advanced Programming module on TDD names this exact failure mode: most teams either miss edge cases entirely or write too many redundant invalid-path tests that don't actually probe a new behavior (Ichlasul Affan, *Module 04: Test-Driven Development & Refactoring*, Advanced Programming, Fasilkom UI, 2024).
+
+The module introduces a small toolbox for picking corner cases on purpose. Two ideas reshaped how I write tests on this project.
+
+### The +1 / -1 Strategy: Boundary Value Analysis
+
+Boundary Value Analysis (BVA) starts by splitting a function's input into **valid** and **invalid** partitions (equivalence partitioning). For every partition, you test five values: the lowest, lowest + 1, middle, highest - 1, and highest. The reasoning is empirical: bugs cluster near the edges, not in the middle, because that's where the implementor most often gets `<` vs `<=` wrong.
+
+{{< mermaid >}}
+flowchart LR
+    I1["less than min<br/>(invalid)"]:::inv --> B1["min"]:::bnd
+    B1 --> B2["min + 1"]:::bnd
+    B2 --> M["middle"]:::mid
+    M --> B4["max - 1"]:::bnd
+    B4 --> B5["max"]:::bnd
+    B5 --> I2["greater than max<br/>(invalid)"]:::inv
+
+    classDef inv fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    classDef bnd fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef mid fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+{{< /mermaid >}}
+
+The file-size check from Upload Sertifikat is a textbook BVA case. Limit: 5 MB. Valid partition: above 0 and at most 5 MB. Invalid partition: above 5 MB. The mutation testing finding I described earlier, that I had no test distinguishing "exactly 5 MB accepted" from "5 MB + 1 byte rejected", was BVA quietly telling me which tests were missing. Once I started planning corner cases with BVA in mind, those gaps stopped surviving to the mutmut report.
+
+For functions with more than one parameter, the module recommends **Single Fault Assumption**: hold all but one parameter at its middle value, vary the remaining one through its extremes. For `n` parameters this gives `4n + 1` tests instead of an exponential explosion.
+
+### Where BVA Fails: Functionality-Driven Cases
+
+BVA only looks at inputs. It doesn't know what the function is supposed to **do**. The module uses a triangle classifier as the cautionary example. With three side-length parameters, BVA varies one side at a time and keeps the other two equal, so it never produces a Scalene triangle like `(a=3, b=4, c=5)`. The Scalene branch goes untested even with a "complete" BVA suite.
+
+I hit the same pattern with the re-upload corner case. The "what happens if Admin uploads the certificate twice" question isn't about input boundaries at all, it's a question about **state**: a Sertifikat already exists for this kegiatan, what should happen next? BVA wouldn't have surfaced it. Talking through the business rules with the team did. Myers, Badgett, and Sandler call this manual gap-filling **Error Guessing** (*The Art of Software Testing*, 3rd ed., 2012), and the module makes the same point: don't lean on a single modelling method.
+
+So my corner-case checklist by the end of the project looked like this:
+
+1. Apply BVA to every numeric or length-bounded input. Mechanical, catches the `<` vs `<=` class of bugs.
+2. Enumerate the output possibilities. Does every reachable result have at least one test driving it? Catches Scalene-style gaps.
+3. Ask team-level questions about state, idempotency, and concurrent actors. Catches the re-upload kind.
+
+The mutation score going from "many survivors" in early sprints to single-digit survivors by the end tracks almost exactly with adopting steps 1 and 2.
 
 ## Mocks Are Not a Cheat, They're a Design Choice
 
