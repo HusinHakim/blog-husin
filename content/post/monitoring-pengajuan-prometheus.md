@@ -14,7 +14,8 @@ Sentry tells me when an API crashes. It does not tell me when many submissions q
 This sprint I added Prometheus monitoring to the seven endpoints of our `pengajuan` feature. What I got out of it: a counter for requests, a counter for exceptions, a histogram for latency, and five PromQL queries that each map to a real alert.
 
 {{< mermaid >}}
-flowchart TD
+%%{init: {'flowchart': {'defaultRenderer': 'elk', 'curve': 'basis'}}}%%
+flowchart LR
     Client["Browser / Client"]
     Django["Django view<br/>@handle_pengajuan_service_exceptions"]
     Metrics["metrics.py<br/>Counter + Histogram"]
@@ -24,13 +25,13 @@ flowchart TD
     Discord["Discord channel"]
     Maintainer((Maintainer))
 
-    Client -->|HTTP request| Django
+    Client -->|HTTP| Django
     Django -->|observe| Metrics
     Metrics -->|register| Endpoint
-    Endpoint -->|scrape every 15s| Prom
+    Endpoint -->|scrape 15s| Prom
     Prom -->|datasource| Grafana
     Grafana -->|dashboard| Maintainer
-    Grafana -.->|webhook when firing| Discord
+    Grafana -.->|webhook| Discord
     Discord -.->|notify| Maintainer
 
     classDef app fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
