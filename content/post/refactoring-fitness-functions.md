@@ -13,9 +13,9 @@ We all know putting `.objects.filter(...)` directly inside a Django view is bad 
 
 So why does it keep happening in real projects?
 
-Because **knowing a rule is not the same as enforcing one**. Code review is human, humans get tired, deadlines win. Three weeks after I extracted `PengajuanRepository` to clean up exactly this problem, what was stopping the next teammate, or me on a Friday afternoon, from sliding `Pengajuan.objects.filter(...)` back into a view?
+Because **knowing a rule is not the same as enforcing one**. Code review is human, humans get tired, deadlines win. Even when someone takes the time to clean a view today, what stops the next teammate, or you on a Friday afternoon, from sliding `Pengajuan.objects.filter(...)` back in next sprint?
 
-The answer I built this sprint: **architectural fitness functions running in GitLab CI**. A short post about three small tests that make the rules un-bypassable.
+The approach I want to write about: **architectural fitness functions running in GitLab CI**. A short post about three small tests that turn the rules from polite suggestions into pipeline gates.
 
 ![Cover: a clean Django view on the left, a small gate labeled "fitness function" in the middle, and a stream of incoming MR commits on the right — only the well-behaved ones pass through](/images/fitness-cover.png)
 
@@ -33,13 +33,13 @@ flowchart LR
 
 That's the whole concept. The rest of the post is what they look like in practice, and how I kept them from ruining my team's day.
 
-## The three rules I actually shipped
+## The three rules
 
 All three live in one file, `tests/test_architecture.py`. Same pytest runner as the rest of the suite. No new dependencies, no DSL, no magic.
 
 ### Rule 1 — Views must not query the ORM
 
-After I extracted `PengajuanRepository`, the only way that pattern keeps working is if the view layer truly never talks to the ORM. So the rule scans `pengajuan/views/` and fails if any file contains `.objects.`.
+The whole point of a service or repository layer is to be the **only** path to the database. The moment a single view sneaks in `.objects.`, that contract leaks and the layer becomes optional. Rule 1 scans `pengajuan/views/` and fails if any file contains `.objects.`.
 
 ```python
 def test_views_tidak_query_orm_langsung():
@@ -49,7 +49,7 @@ def test_views_tidak_query_orm_langsung():
             pelanggaran.append(str(file))
     assert not pelanggaran, (
         f"View masih query ORM langsung: {pelanggaran}. "
-        "Pakai PengajuanRepository."
+        "Pakai service layer atau repository."
     )
 ```
 
@@ -128,7 +128,7 @@ flowchart TB
 
 ## The legacy code wall
 
-The first time I ran rule 1, **seven files failed**. If I had merged that with `allow_failure: false`, the entire team's pipeline would have been red until every legacy view was rewritten. In the last sprint, that's how you become the most unpopular person in the channel.
+The first time anyone runs rule 1 on a real codebase that hasn't been cleaned, **a handful of legacy files will fail immediately**. If you merge that with `allow_failure: false`, every teammate's pipeline goes red until every legacy view is rewritten. That's how a well-intended rule becomes the most unpopular thing in the channel.
 
 There are four common ways out:
 
@@ -139,7 +139,7 @@ There are four common ways out:
 | Ratchet file | Auto-saved count, fails if it ever goes up | More infra |
 | **Diff-scan** | Only check files touched by this MR | Fair, matches `diff-cover` |
 
-I picked **diff-scan**. Two reasons. First, the team already understands this pattern from the `diff_coverage` job in the pipeline. Same mental model. Second, it matches the **boy scout rule** Fowler keeps repeating: *leave the code cleaner than you found it*. Not perfect. Cleaner.
+I'd pick **diff-scan**. Two reasons. First, most teams already have a `diff_coverage` job in their pipeline, so the mental model is familiar. Second, it matches the **boy scout rule** Fowler keeps repeating: *leave the code cleaner than you found it*. Not perfect. Cleaner.
 
 {{< mermaid >}}
 flowchart TB
@@ -226,7 +226,7 @@ I want to name the limits, because a tool that gets oversold ends up distrusted.
 
 **Static checks have escape hatches.** Rule 1 looks for `.objects.`. A determined developer can write `OBJ = Pengajuan.objects; OBJ.filter(...)` and slip past. Fitness functions raise the cost of regression. They don't eliminate it. The team's agreement underneath the rule is what really enforces anything.
 
-**A rule without a refactor behind it is theater.** I only added rule 1 *after* I extracted `PengajuanRepository`. If I had added the rule first, the team would have been blocked indefinitely with no fix path. **Refactor first, then gate.**
+**A rule without a fix path is theater.** Rule 1 only makes sense once a real alternative exists in the codebase, whether that's a service layer, a repository, or anything else the team agrees on. Gate first and refactor second, and the pipeline is just blocked indefinitely with no place to put the code. **Build the alternative first, then gate.**
 
 **Code review still matters.** A fitness function catches mechanical violations. It can't tell you a name is wrong, an abstraction is leaky, or a clever workaround defeats the rule's spirit. Use fitness functions to **automate the boring checks** so reviewers can spend their attention on judgment.
 
@@ -234,7 +234,7 @@ I want to name the limits, because a tool that gets oversold ends up distrusted.
 
 Three small lessons I wish I'd internalized earlier in the sprint:
 
-**Knowing a rule is the easy half.** Everyone on the team already knew ORM didn't belong in views. The rule was never the gap. Enforcement was.
+**Knowing a rule is the easy half.** Everyone already knows ORM doesn't belong in views. The rule was never the gap. Enforcement was.
 
 **A fitness function is a refactor's seatbelt.** It doesn't make the code better. It keeps the improvement from quietly rotting back.
 
