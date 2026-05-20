@@ -555,3 +555,30 @@ hr::before {
     display: none;
   }
 }
+
+/* --- Mermaid diagrams ----------------------------------------------------- */
+/* Allow wide diagrams to render at natural size and scroll horizontally
+   inside the post content column instead of being squashed unreadably. */
+pre.mermaid {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+pre.mermaid svg {
+  max-width: none !important;
+  height: auto !important;
+  min-width: 100%;
+}
+
+/* Bump label readability on top of mermaid's own fontSize config. */
+pre.mermaid .nodeLabel,
+pre.mermaid .edgeLabel,
+pre.mermaid .label {
+  font-family: 'Ubuntu', system-ui, sans-serif !important;
+  font-size: 16px !important;
+}

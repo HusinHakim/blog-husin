@@ -45,6 +45,23 @@
 {{ if .Params.mermaid }}
 <script type="module">
   import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-  mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose' });
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    securityLevel: 'loose',
+    fontSize: 18,
+    flowchart: {
+      useMaxWidth: false,
+      htmlLabels: true,
+      nodeSpacing: 60,
+      rankSpacing: 80,
+      padding: 20,
+      curve: 'basis'
+    },
+    themeVariables: {
+      fontSize: '18px',
+      fontFamily: 'Ubuntu, system-ui, sans-serif'
+    }
+  });
 </script>
 {{ end }}
