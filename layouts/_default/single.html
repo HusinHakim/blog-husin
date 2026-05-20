@@ -4,6 +4,8 @@
         <h1 class="post__title">{{ .Title | markdownify }}</h1>
         <div class="post__meta">
             <time class="post__date">{{ .Date.Format "Jan 02, 2006" }}</time>
+            <span class="post__meta-sep">&middot;</span>
+            <span class="post__reading-time">{{ .ReadingTime }} min read</span>
             {{ with .Params.tags }}
                 <ul class="post__tags">
                 {{ range . }}
@@ -26,4 +28,66 @@
         </div>
     </div>
 </article>
+
+{{ if and (.Params.toc) (.TableOfContents) }}
+<script>
+(function() {
+    var tocLinks = document.querySelectorAll('.post__toc a');
+    if (!tocLinks.length) return;
+
+    var linkById = new Map();
+    tocLinks.forEach(function(a) {
+        var href = a.getAttribute('href') || '';
+        try { href = decodeURIComponent(href); } catch (e) {}
+        var id = href.replace(/^#/, '');
+        if (id) linkById.set(id, a);
+    });
+
+    var headings = [];
+    linkById.forEach(function(_, id) {
+        var el = document.getElementById(id);
+        if (el) headings.push(el);
+    });
+    if (!headings.length) return;
+
+    headings.sort(function(a, b) {
+        return a.getBoundingClientRect().top - b.getBoundingClientRect().top;
+    });
+
+    var currentActive = null;
+    function setActive(id) {
+        if (id === currentActive) return;
+        currentActive = id;
+        tocLinks.forEach(function(a) { a.classList.remove('active'); });
+        var link = linkById.get(id);
+        if (link) link.classList.add('active');
+    }
+
+    var offset = 120;
+    var ticking = false;
+    function updateActive() {
+        ticking = false;
+        var current = headings[0];
+        for (var i = 0; i < headings.length; i++) {
+            if (headings[i].getBoundingClientRect().top - offset <= 0) {
+                current = headings[i];
+            } else {
+                break;
+            }
+        }
+        if (current) setActive(current.id);
+    }
+    function onScroll() {
+        if (!ticking) {
+            window.requestAnimationFrame(updateActive);
+            ticking = true;
+        }
+    }
+
+    updateActive();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+})();
+</script>
+{{ end }}
 {{ end }}

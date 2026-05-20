@@ -233,7 +233,13 @@ body > .page {
   color: var(--text-muted);
 }
 
-.post__date {
+.post__date,
+.post__reading-time {
+  font-family: 'Ubuntu Mono', monospace;
+}
+
+.post__meta-sep {
+  color: var(--text-muted);
   font-family: 'Ubuntu Mono', monospace;
 }
 
@@ -354,10 +360,10 @@ body > .page {
   .post__toc a:hover {
     color: var(--accent);
   }
-  /* Item pertama: highlight active state default */
-  .post__toc > nav > ul > li:first-child > a,
-  .post__toc > ul > li:first-child > a {
+  /* Active state - di-set via JS scroll-spy di single.html */
+  .post__toc a.active {
     color: var(--accent);
+    font-weight: 500;
   }
   /* Reset marker untuk TOC */
   .post__toc li::marker {

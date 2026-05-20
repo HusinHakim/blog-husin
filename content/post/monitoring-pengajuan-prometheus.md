@@ -6,13 +6,49 @@ description = "Bolting custom Prometheus metrics onto a 7-endpoint Django featur
 toc = true
 tags = ["monitoring", "prometheus", "grafana", "django", "observability", "alerting"]
 categories = ["platform-monitoring"]
+mermaid = true
 +++
 
 Sentry tells me when an API crashes. It does not tell me when many submissions quietly fail with a 409 because we just shipped a validation bug. The API did not crash. It just rejected the user. That is a different kind of problem, and it needs a different tool.
 
 This sprint I added Prometheus monitoring to the seven endpoints of our `pengajuan` feature. What I got out of it: a counter for requests, a counter for exceptions, a histogram for latency, and five PromQL queries that each map to a real alert.
 
-![Architecture diagram: request flow from browser through Django decorator into metrics.py, exposed at /api/metrics, scraped by Prometheus, visualized in Grafana, and routed to alerts](/images/monitoring-pengajuan-architecture.png)
+{{< mermaid >}}
+flowchart LR
+    Client["Browser / Client"]
+    Django["Django view<br/>+ @handle_pengajuan_service_exceptions"]
+    Metrics["metrics.py<br/>Counter + Histogram"]
+    Endpoint["/api/metrics<br/>Prometheus exposition"]
+    Prom[("Prometheus<br/>time-series DB")]
+    Grafana["Grafana<br/>panels + alert rules"]
+    Discord["Discord channel<br/>(GBM_MONITORING_DISCORD)"]
+    Maintainer((Maintainer))
+
+    Client -- "HTTP request" --> Django
+    Django -- "observe()" --> Metrics
+    Metrics -- "register" --> Endpoint
+    Endpoint -- "scrape every 15s" --> Prom
+    Prom -- "datasource" --> Grafana
+    Grafana -- "dashboard" --> Maintainer
+    Grafana -- "PromQL eval + webhook" --> Discord
+    Discord -- "alert" --> Maintainer
+
+    classDef app fill:#1f3a5f,stroke:#0d1b2a,color:#fff
+    classDef exposition fill:#bf6b1f,stroke:#3d1f00,color:#fff
+    classDef storage fill:#a8530c,stroke:#3d1f00,color:#fff
+    classDef visualize fill:#1f5f3a,stroke:#0d2a1b,color:#fff
+    classDef notify fill:#1f5f3a,stroke:#0d2a1b,color:#fff
+    classDef neutral fill:#e8e8e8,stroke:#333,color:#000
+
+    class Django,Metrics app
+    class Endpoint exposition
+    class Prom storage
+    class Grafana visualize
+    class Discord notify
+    class Client,Maintainer neutral
+{{< /mermaid >}}
+
+*Request flow: browser hits a Django view wrapped by `@handle_pengajuan_service_exceptions`, the decorator calls `observe()` on the Counter and Histogram defined in `metrics.py`, those metrics are exposed at `/api/metrics` and scraped by Prometheus every 15s. Grafana reads the resulting time-series both for dashboards and for the four Grafana-managed alert rules, which fire to the team's `GBM_MONITORING_DISCORD` contact point when thresholds are breached.*
 
 ## Three problems the new metrics catch
 
