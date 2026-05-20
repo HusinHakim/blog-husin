@@ -557,22 +557,21 @@ hr::before {
 }
 
 /* --- Mermaid diagrams ----------------------------------------------------- */
-/* Allow wide diagrams to render at natural size and scroll horizontally
-   inside the post content column instead of being squashed unreadably. */
+/* Fit diagram to the post content column. The flowchart direction (TB / LR)
+   should be chosen in the markdown so that no horizontal scroll is needed. */
 pre.mermaid {
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 1rem;
   margin: 1.5rem 0;
-  overflow-x: auto;
   text-align: center;
 }
 
 pre.mermaid svg {
-  max-width: none !important;
+  max-width: 100% !important;
   height: auto !important;
-  min-width: 100%;
+  display: inline-block;
 }
 
 /* Bump label readability on top of mermaid's own fontSize config. */
