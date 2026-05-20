@@ -183,22 +183,7 @@ flowchart LR
     class Q3 new
 {{< /mermaid >}}
 
-```yaml
-architecture_fitness:
-  stage: quality
-  image: python:3.11
-  variables:
-    GIT_DEPTH: "0"
-  before_script:
-    - pip install -r requirements.txt
-  script:
-    - export BASE="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-staging}"
-    - git fetch origin "$BASE"
-    - python tests/check_architecture_diff.py --base "origin/$BASE"
-  allow_failure: false
-```
-
-The `allow_failure: false` line is the whole point. A warning-only job gets muted in a week. **A gate that doesn't block is just a sticker.**
+The crucial flag is `allow_failure: false`. A warning-only job gets muted in a week. **A gate that doesn't block is just a sticker.**
 
 ![GitLab pipeline view, two stacked screenshots: top all green including architecture_fitness, bottom with architecture_fitness red and the assertion message expanded](/images/fitness-gitlab-pipeline.png)
 
