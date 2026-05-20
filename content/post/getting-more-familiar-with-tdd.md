@@ -132,26 +132,31 @@ Myers, Badgett, and Sandler call this grab-bag **Error Guessing** (*The Art of S
 
 Short answer: no. They solve one specific problem, not a default.
 
-Reach for one when the code under test crosses a boundary you don't control or don't want hit in a test: external service (Supabase storage, email/SMTP, payment gateway), database when you want unit-test speed, time / randomness / filesystem, or a side effect you need to verify happened (or didn't).
+Reach for one when the code under test crosses a boundary you don't control or don't want hit in a test: external service (Supabase storage, email/SMTP, payment gateway), database when you want unit-test speed, time / randomness / filesystem. Skip them for pure functions, value objects, data-only models, or anything already cheap and deterministic. Wrapping those in a mock just couples the test to the implementation.
 
-Skip them when the collaborator is a pure function, a value object, a model with just data, or anything already cheap and deterministic. Wrapping those in a mock just couples the test to the implementation.
+The distinction between **stub** and **mock** comes down to the **direction of the interaction**: a stub feeds data *into* the system under test, a mock observes what flows *out* of it.
 
 {{< mermaid >}}
-flowchart TD
-    Q[Code calls a collaborator]
-    Q --> E{External, slow,<br/>or non-deterministic?}
-    E -->|No| D[Use the real thing]
-    E -->|Yes| R{Need to verify<br/>the call happened?}
-    R -->|No, just need a return value| S[Stub]
-    R -->|Yes, assert args / call count| M[Mock]
+flowchart TB
+    SMTP["SMTP server<br/>(never reached in test)"]:::ext
+    MOCK["MOCK<br/>verifies send_email() was called<br/>with the right arguments"]:::mock
+    SUT(["System under test"]):::sut
+    STUB["STUB<br/>returns canned data<br/>(no real DB hit)"]:::stub
+    DB[("Database<br/>(never reached in test)")]:::ext
 
-    classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d
-    classDef neu fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
-    class D ok
-    class S,M neu
+    SUT == "send_email()<br/><b>OUTGOING</b> · side effect" ==> MOCK
+    MOCK -. "real call blocked" .-> SMTP
+
+    DB -. "real call blocked" .-> STUB
+    STUB == "user_data<br/><b>INCOMING</b> · return value" ==> SUT
+
+    classDef sut fill:#1e293b,stroke:#0f172a,color:#fff,font-weight:bold,stroke-width:3px
+    classDef ext fill:#cbd5e1,stroke:#64748b,color:#0f172a
+    classDef mock fill:#fde68a,stroke:#d97706,color:#78350f,font-weight:bold,stroke-width:2px
+    classDef stub fill:#bfdbfe,stroke:#2563eb,color:#1e3a8a,font-weight:bold,stroke-width:2px
 {{< /mermaid >}}
 
-In `unittest.mock` and Mockito the same object plays both roles. The intent in the test should still be clear: a stub drives the test (the upload returns this URL so the rest of the flow can run), a mock asserts a contract (the storage upload was never called when the guard tripped).
+A **stub** replaces a dependency that returns data the test needs to proceed: the Supabase client returns a URL so the rest of `SertifikatService` can keep running. A **mock** replaces a dependency that performs a side effect the test needs to verify: assert the storage upload was never called when the duplicate-sertifikat guard tripped. In `unittest.mock` and Mockito the same object plays both roles, but the intent in the test should still be obvious from how it's used.
 
 ## Mocks Are Not a Cheat, They're a Design Choice
 
