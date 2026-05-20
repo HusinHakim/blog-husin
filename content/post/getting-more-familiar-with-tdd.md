@@ -128,6 +128,31 @@ BVA only knows inputs, not behavior. Four other lenses I picked up while buildin
 
 Myers, Badgett, and Sandler call this grab-bag **Error Guessing** (*The Art of Software Testing*, 3rd ed., 2012): the cases you only find by knowing the domain, not the schema. The module's rule and mine end up the same: don't lean on a single method. BVA closed the numeric-edge survivors in mutmut; the other four lenses closed the rest.
 
+## Is mock/stub mandatory?
+
+Short answer: no. They solve one specific problem, not a default.
+
+Reach for one when the code under test crosses a boundary you don't control or don't want hit in a test: external service (Supabase storage, email/SMTP, payment gateway), database when you want unit-test speed, time / randomness / filesystem, or a side effect you need to verify happened (or didn't).
+
+Skip them when the collaborator is a pure function, a value object, a model with just data, or anything already cheap and deterministic. Wrapping those in a mock just couples the test to the implementation.
+
+{{< mermaid >}}
+flowchart TD
+    Q[Code calls a collaborator]
+    Q --> E{External, slow,<br/>or non-deterministic?}
+    E -->|No| D[Use the real thing]
+    E -->|Yes| R{Need to verify<br/>the call happened?}
+    R -->|No, just need a return value| S[Stub]
+    R -->|Yes, assert args / call count| M[Mock]
+
+    classDef ok fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef neu fill:#e0f2fe,stroke:#0284c7,color:#0c4a6e
+    class D ok
+    class S,M neu
+{{< /mermaid >}}
+
+In `unittest.mock` and Mockito the same object plays both roles. The intent in the test should still be clear: a stub drives the test (the upload returns this URL so the rest of the flow can run), a mock asserts a contract (the storage upload was never called when the guard tripped).
+
 ## Mocks Are Not a Cheat, They're a Design Choice
 
 This project uses Supabase as storage. I didn't want tests to be slow because of real Supabase calls, and I didn't want the bucket to fill up with test garbage.
