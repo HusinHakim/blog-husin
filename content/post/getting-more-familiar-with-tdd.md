@@ -137,21 +137,20 @@ Reach for one when the code under test crosses a boundary you don't control or d
 The distinction between **stub** and **mock** comes down to the **direction of the interaction**: a stub feeds data *into* the system under test, a mock observes what flows *out* of it.
 
 {{< mermaid >}}
-flowchart TB
-    SMTP["SMTP server<br/>(never reached in test)"]:::ext
-    MOCK["MOCK<br/>verifies send_email() was called<br/>with the right arguments"]:::mock
-    SUT(["System under test"]):::sut
-    STUB["STUB<br/>returns canned data<br/>(no real DB hit)"]:::stub
-    DB[("Database<br/>(never reached in test)")]:::ext
+flowchart LR
+    DB[("real<br/>Database")]:::ext
+    STUB["<b>STUB</b><br/>returns canned data"]:::stub
+    SUT(["System<br/>under test"]):::sut
+    MOCK["<b>MOCK</b><br/>records the call<br/>for verification"]:::mock
+    SMTP["real<br/>SMTP server"]:::ext
 
-    SUT == "send_email()<br/><b>OUTGOING</b> · side effect" ==> MOCK
-    MOCK -. "real call blocked" .-> SMTP
-
-    DB -. "real call blocked" .-> STUB
-    STUB == "user_data<br/><b>INCOMING</b> · return value" ==> SUT
+    DB -. "intercepted" .-> STUB
+    STUB == "data IN<br/>INCOMING" ==> SUT
+    SUT == "side effect OUT<br/>OUTGOING" ==> MOCK
+    MOCK -. "intercepted" .-> SMTP
 
     classDef sut fill:#1e293b,stroke:#0f172a,color:#fff,font-weight:bold,stroke-width:3px
-    classDef ext fill:#cbd5e1,stroke:#64748b,color:#0f172a
+    classDef ext fill:#e2e8f0,stroke:#94a3b8,color:#64748b
     classDef mock fill:#fde68a,stroke:#d97706,color:#78350f,font-weight:bold,stroke-width:2px
     classDef stub fill:#bfdbfe,stroke:#2563eb,color:#1e3a8a,font-weight:bold,stroke-width:2px
 {{< /mermaid >}}
