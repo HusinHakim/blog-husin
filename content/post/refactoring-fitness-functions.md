@@ -19,9 +19,22 @@ The approach I want to write about: **architectural fitness functions running in
 
 ![Cover: a clean Django view on the left, a small gate labeled "fitness function" in the middle, and a stream of incoming MR commits on the right — only the well-behaved ones pass through](/images/fitness-cover.png)
 
+## A bit of backstory
+
+In Advanced Programming we spent a chunk of the semester on **Martin Fowler's** work: the named refactorings (Extract Method, Move Function, Replace Conditional with Polymorphism), the smell catalog (Long Method, Feature Envy, Inappropriate Intimacy), and the enterprise patterns from *Patterns of Enterprise Application Architecture* like **Service Layer**, **Repository**, and **DTO**. Lots of vocabulary, all of it useful.
+
+Going back to Fowler's writing this sprint while preparing my refactoring submission, one line kept landing harder than the rest:
+
+> *"Any fool can write code that a computer can understand. Good programmers write code that humans can understand."*  
+> — Martin Fowler, *Refactoring* (1999)
+
+He's saying code is read far more often than it is written, so the design has to be **maintained continuously**, not just shipped once. That framing exposed a gap in how I'd been thinking about the course material: class taught me how to clean code *today* (Extract Method, Move Function, etc.). Nothing taught me how to make sure the code **stays clean tomorrow**, after the next teammate, the next deadline, the next "just one quick fix".
+
+That gap is what this post is about. The fix lives in a different but Fowler-adjacent book, *Building Evolutionary Architectures* by Neal Ford and Rebecca Parsons (foreword by Fowler), where the concept of an **architectural fitness function** is introduced.
+
 ## What's a fitness function, in one paragraph
 
-Term comes from Neal Ford and Rebecca Parsons, *Building Evolutionary Architectures* (2017), foreword by Martin Fowler. A **fitness function** is an automated test that checks the **shape** of your code, not its behavior. Unit tests ask *"did the function return the right number?"*. Fitness functions ask *"is the function in the right layer?"*. Both run in pytest. Both fail the build when they go red.
+A **fitness function** is an automated test that checks the **shape** of your code, not its behavior. Unit tests ask *"did the function return the right number?"*. Fitness functions ask *"is the function in the right layer?"*. Both run in pytest. Both fail the build when they go red. The difference is that one defends correctness, the other defends design.
 
 {{< mermaid >}}
 flowchart LR
