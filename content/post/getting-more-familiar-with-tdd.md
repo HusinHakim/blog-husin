@@ -1,5 +1,5 @@
 +++
-title = "Applying TDD in a Real Project: Not Theory, but Experience"
+title = "Getting more familiar with TDD: the corner cases I would never have written"
 date = "2026-04-23"
 author = "Husin Hidayatul"
 description = "Notes from several sprints applying TDD on the Guru Besar Mengajar project: three test categories, the +1 / -1 boundary strategy, mock placement, and what mutation testing exposed."
