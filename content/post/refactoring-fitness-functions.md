@@ -17,7 +17,7 @@ Because **knowing a rule is not the same as enforcing one**. Code review is huma
 
 The approach I want to write about: **architectural fitness functions running in GitLab CI**. A short post about three small tests that turn the rules from polite suggestions into pipeline gates.
 
-![Cover: a clean Django view on the left, a small gate labeled "fitness function" in the middle, and a stream of incoming MR commits on the right — only the well-behaved ones pass through](/images/fitness-cover.png)
+![Cover: incoming MRs on the right flow into a fitness function gate in the middle. Clean MRs reach the main branch on the left, MRs with forbidden patterns like .objects. in views get bounced back to the author](/images/fitness-cover.svg)
 
 ## A bit of backstory
 
