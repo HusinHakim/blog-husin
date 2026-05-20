@@ -14,35 +14,28 @@ Sentry tells me when an API crashes. It does not tell me when many submissions q
 This sprint I added Prometheus monitoring to the seven endpoints of our `pengajuan` feature. What I got out of it: a counter for requests, a counter for exceptions, a histogram for latency, and five PromQL queries that each map to a real alert.
 
 {{< mermaid >}}
-%%{init: {'flowchart': {'defaultRenderer': 'elk', 'curve': 'basis'}}}%%
-flowchart LR
-    Client["Browser / Client"]
-    Django["Django view<br/>@handle_pengajuan_service_exceptions"]
-    Metrics["metrics.py<br/>Counter + Histogram"]
-    Endpoint["/api/metrics"]
-    Prom[("Prometheus<br/>time-series DB")]
-    Grafana["Grafana<br/>panels + alert rules"]
-    Discord["Discord channel"]
-    Maintainer((Maintainer))
+flowchart TB
+    subgraph App["Application code"]
+        direction LR
+        Client["Browser /<br/>Client"] -->|HTTP| Django["Django view<br/>@handle_pengajuan_service_exceptions"]
+        Django -->|observe| Metrics["metrics.py<br/>Counter + Histogram"]
+        Metrics -->|register| Endpoint["/api/metrics"]
+    end
 
-    Client -->|HTTP| Django
-    Django -->|observe| Metrics
-    Metrics -->|register| Endpoint
+    subgraph Stack["Observability stack"]
+        direction LR
+        Prom[("Prometheus<br/>time-series DB")] -->|datasource| Grafana["Grafana<br/>panels + alert rules"]
+    end
+
     Endpoint -->|scrape 15s| Prom
-    Prom -->|datasource| Grafana
-    Grafana -->|dashboard| Maintainer
-    Grafana -.->|webhook| Discord
-    Discord -.->|notify| Maintainer
 
-    classDef app fill:#e3f2fd,stroke:#1565c0,color:#0d47a1
-    classDef stack fill:#e8f5e9,stroke:#2e7d32,color:#1b5e20
-    classDef notify fill:#fff8e1,stroke:#f9a825,color:#795548
-    classDef actor fill:#f5f5f5,stroke:#616161,color:#212121
+    Grafana -->|dashboard| Maint((Maintainer))
+    Grafana -.->|webhook| Discord["Discord channel"]
+    Discord -.->|notify| Maint
 
-    class Django,Metrics,Endpoint app
-    class Prom,Grafana stack
-    class Discord notify
-    class Client,Maintainer actor
+    style App fill:#e3f2fd,stroke:#1565c0,stroke-width:1px
+    style Stack fill:#e8f5e9,stroke:#2e7d32,stroke-width:1px
+    style Discord fill:#fff8e1,stroke:#f9a825
 {{< /mermaid >}}
 
 *Request flow: browser hits a Django view wrapped by `@handle_pengajuan_service_exceptions`, the decorator calls `observe()` on the Counter and Histogram defined in `metrics.py`, those metrics are exposed at `/api/metrics` and scraped by Prometheus every 15s. Grafana reads the resulting time-series both for dashboards and for the four Grafana-managed alert rules, which fire to the team's `GBM_MONITORING_DISCORD` contact point when thresholds are breached.*
