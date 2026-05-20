@@ -4,6 +4,7 @@ date = "2026-05-20"
 author = "Husin Hidayatul"
 description = "After three refactor commits I asked: what stops the cleanup from quietly rotting? The answer was a set of architectural fitness functions in GitLab CI, scoped with diff-scan so the team can still merge."
 toc = true
+mermaid = true
 tags = ["fitness-functions", "evolutionary-architecture", "django", "ci-cd", "gitlab", "refactoring"]
 categories = ["software-architecture"]
 +++
@@ -18,7 +19,23 @@ This post is about the answer I settled on: **architectural fitness functions** 
 
 The phrase **architectural fitness function** comes from Neal Ford and Rebecca Parsons, *Building Evolutionary Architectures* (O'Reilly, 2017), with a foreword by Martin Fowler. The term itself is borrowed from evolutionary computing, where a fitness function scores how close a candidate solution is to ideal. Applied to architecture, it is **an automated, objective check that the system still satisfies a chosen architectural characteristic**. Where unit tests answer *"does the code behave correctly?"*, fitness functions answer *"is the code still organized the way we agreed to organize it?"*.
 
-![Two-panel diagram. Left panel: unit test asking "does the code do the right thing?". Right panel: fitness function asking "is the code organized the right way?". Below each, an example test snippet.](/images/fitness-vs-unit-test.png)
+{{< mermaid >}}
+flowchart LR
+    subgraph UT[Unit test]
+        direction TB
+        U1[Input: call function with args]
+        U2[Check: return value equals expected]
+        U1 --> U2
+    end
+    subgraph FF[Fitness function]
+        direction TB
+        F1[Input: source files on disk]
+        F2[Check: no .objects. in views layer]
+        F1 --> F2
+    end
+    UT -. asks .-> Q1((does the code<br/>behave correctly?))
+    FF -. asks .-> Q2((is the code<br/>organized correctly?))
+{{< /mermaid >}}
 
 Fowler has been writing about this idea, under different names, for two decades: *Tradeable Quality Attributes*, *Architecturally-Significant Requirements*, the **Reversibility** principle in his "Evolutionary Architecture" essay. Ford and Parsons gave it a single term and an operational definition.
 
@@ -34,7 +51,23 @@ Before adding fitness functions, my situation was the classic refactor-rot trap:
 
 A Sonar dashboard would tell me, **eventually**, that smells were creeping back. A dashboard is a report. I wanted a **gate**: a job that fails the pipeline and blocks merge the moment a rule is broken, with a precise message pointing at the offending line.
 
-![Comparison: top row "Sonar dashboard" shows a delayed weekly trend chart with an arrow saying "regression visible 7 days later". Bottom row "Fitness function" shows a red X on a single MR with arrow saying "merge blocked, 30 seconds after push"](/images/fitness-dashboard-vs-gate.png)
+{{< mermaid >}}
+flowchart LR
+    subgraph DASH[Sonar dashboard]
+        D1[MR merged with regression]
+        D2[Nightly Sonar scan]
+        D3[Trend chart updates]
+        D4[Someone notices a week later]
+        D1 --> D2 --> D3 --> D4
+    end
+    subgraph GATE[Fitness function gate]
+        G1[MR pushed with regression]
+        G2[CI runs fitness test]
+        G3[Job red within 30s]
+        G4[Merge blocked, author fixes before review]
+        G1 --> G2 --> G3 --> G4
+    end
+{{< /mermaid >}}
 
 ## The Ford & Parsons taxonomy, briefly
 
@@ -43,9 +76,46 @@ Fitness functions are not one thing. Ford and Parsons categorize them along seve
 - **Triggered** (runs on a discrete event like an MR) vs **Continuous** (runs against production traffic, e.g. latency budgets). Mine are all triggered, because that's where CI lives.
 - **Atomic** (checks one rule on one piece of code) vs **Holistic** (checks an emergent property across the system, like end-to-end latency). Mine are all atomic, intentionally; emergent rules are powerful but easier to write wrong, and I wanted my first set to be obviously correct.
 
-![A 2x2 grid: rows triggered/continuous, columns atomic/holistic. Each quadrant has one short example. My four rules are clustered in the triggered+atomic quadrant.](/images/fitness-ford-taxonomy.png)
+{{< mermaid >}}
+quadrantChart
+    title Fitness function taxonomy (Ford & Parsons)
+    x-axis "Atomic (one rule, one place)" --> "Holistic (emergent property)"
+    y-axis "Continuous (runs on traffic)" --> "Triggered (runs on MR)"
+    quadrant-1 "Triggered + Holistic"
+    quadrant-2 "Triggered + Atomic"
+    quadrant-3 "Continuous + Atomic"
+    quadrant-4 "Continuous + Holistic"
+    "Rule 1 views no ORM": [0.15, 0.85]
+    "Rule 2 serializer no DB": [0.20, 0.80]
+    "Rule 3 long method budget": [0.25, 0.78]
+    "Rule 4 app boundary": [0.18, 0.82]
+    "E2E latency budget": [0.85, 0.20]
+    "Chaos resilience score": [0.80, 0.25]
+{{< /mermaid >}}
 
 This is a useful frame when defending the design to a reviewer or a lecturer: *"I deliberately chose triggered+atomic for the first generation. Holistic latency fitness comes after the Prometheus stack is mature."*
+
+## The runtime flow of a single fitness function
+
+Before showing the four rules, here's the actual mechanic of one rule running. Every fitness function in my set follows the same five-step pipeline. This is what makes them simple to write, simple to review, and simple to defend.
+
+{{< mermaid >}}
+flowchart TB
+    Start([pytest tests/test_architecture.py]) --> Collect[Collect target files<br/>e.g. pengajuan/views/*.py]
+    Collect --> Loop{For each file}
+    Loop --> Parse[Read source + parse with ast]
+    Parse --> Check{Rule violated?<br/>e.g. contains .objects.}
+    Check -- yes --> Record[Append file:line to violations]
+    Check -- no --> Loop
+    Record --> Loop
+    Loop -- done --> Assert{violations empty?}
+    Assert -- yes --> Green([Test green, MR can merge])
+    Assert -- no --> Red([AssertionError with file:line list<br/>Pipeline red, merge blocked])
+    style Green fill:#c8e6c9,stroke:#388e3c
+    style Red fill:#ffcdd2,stroke:#c62828
+{{< /mermaid >}}
+
+The whole thing is **collect → loop → check → assert**. No heavy machinery, no extra dependencies, no DSL. A reviewer can read one of these tests in 60 seconds and form an opinion. That readability is on purpose, because the rule and the test are the same artifact; if the test is hard to read, the team won't trust the rule.
 
 ## The four rules I wrote
 
@@ -94,14 +164,37 @@ The budget is intentionally loose at the start so existing legacy passes. It **r
 
 `pengajuan` and `kegiatan` can depend on each other's `models.py` (the public contract), but never on each other's `services.py` or `views/`. This protects module boundaries and prevents accidental cyclic coupling.
 
+{{< mermaid >}}
+flowchart LR
+    subgraph PA[pengajuan app]
+        PM[models.py]
+        PS[services.py]
+        PV[views/]
+    end
+    subgraph KA[kegiatan app]
+        KM[models.py]
+        KS[services.py]
+        KV[views/]
+    end
+    PV -- allowed --> PM
+    PV -- allowed --> PS
+    KV -- allowed --> KM
+    KV -- allowed --> KS
+    PS -. allowed .-> KM
+    KS -. allowed .-> PM
+    PV -- "FORBIDDEN" --x KS
+    KV -- "FORBIDDEN" --x PS
+    PS -- "FORBIDDEN" --x KV
+    KS -- "FORBIDDEN" --x PV
+    classDef forbidden stroke:#c62828,stroke-width:2px
+{{< /mermaid >}}
+
 ```python
 TERLARANG = (
     "from kegiatan.services", "from kegiatan.views",
     "from pengajuan.services", "from pengajuan.views",
 )
 ```
-
-![A two-app boundary diagram. Green arrows are allowed (model-to-model). Red crossed-out arrows are forbidden (service-to-service or view-to-view across apps).](/images/fitness-rule4-boundaries.png)
 
 ## The legacy code wall, and how to step around it
 
@@ -116,17 +209,47 @@ Standard solutions for this exact problem, ranked from blunt to elegant:
 | **Ratchet file** | Store the count in tracked JSON, fail if it ever goes up | Long-running projects |
 | **Diff-scan** | Only check files actually changed in the current MR | Most fair, matches existing `diff-cover` style |
 
-I picked **diff-scan**. Two reasons.
+I picked **diff-scan**. Two reasons. **One:** it matches a pattern already in our pipeline; the `diff_coverage` job uses `diff-cover --fail-under=100` against the MR's target branch, so the team's mental model is already there. **Two:** it embodies the **boy scout rule** that Robert C. Martin formalized and that Fowler frequently echoes: *leave the code cleaner than you found it*. Not perfect. Cleaner.
 
-**One:** it matches a pattern already in our pipeline. The `diff_coverage` job in `.gitlab-ci.yml` uses `diff-cover --fail-under=100` against the MR's target branch. The team's mental model is already there. Same philosophy: don't punish people for legacy they didn't write, but never let them add new debt.
+Here is the diff-scan flow concretely:
 
-**Two:** it embodies the **boy scout rule** that Robert C. Martin formalized and that Fowler frequently echoes: *leave the code cleaner than you found it*. Not perfect. Cleaner.
+{{< mermaid >}}
+flowchart TB
+    Push([Dev pushes MR commit]) --> CI[GitLab CI starts pipeline]
+    CI --> Fetch[Fetch target branch<br/>git fetch origin staging]
+    Fetch --> Diff[Compute changed files<br/>git diff --name-only origin/staging...HEAD]
+    Diff --> Filter{Any .py files<br/>in changed set?}
+    Filter -- no --> Skip([Skip architecture check, green])
+    Filter -- yes --> Scope[Pass changed files only<br/>to fitness function]
+    Scope --> Run[Run rules 1-4 on this subset]
+    Run --> Result{Any rule violated<br/>in changed files?}
+    Result -- no --> Pass([Job green, merge allowed])
+    Result -- yes --> Fail([Job red with file:line<br/>merge blocked])
+    style Pass fill:#c8e6c9,stroke:#388e3c
+    style Skip fill:#c8e6c9,stroke:#388e3c
+    style Fail fill:#ffcdd2,stroke:#c62828
+{{< /mermaid >}}
 
-![Two-panel illustration. Left "full scan": every legacy violation across the codebase shown in red, overwhelming. Right "diff scan": only the lines changed in the current MR highlighted, with the rest greyed out. A tiny new violation in the diff is flagged.](/images/fitness-diff-vs-full-scan.png)
+The crucial property: a legacy file that nobody touched in this MR is **never opened**, so it cannot trip the rule. Only **new debt in this MR** can fail the build.
 
 ## GitLab CI integration
 
 The new job sits inside the existing `quality` stage, next to `diff_coverage` and `sonarqube`. No new Docker image. The whole thing adds about 15 seconds to the pipeline.
+
+{{< mermaid >}}
+flowchart LR
+    Push([git push]) --> Lint[lint]
+    Lint --> Test[test<br/>pytest + coverage]
+    Test --> Q1[diff_coverage]
+    Test --> Q2[sonarqube]
+    Test --> Q3[architecture_fitness<br/>NEW]
+    Q1 --> Build[build]
+    Q2 --> Build
+    Q3 --> Build
+    Build --> Deploy[deploy]
+    classDef new fill:#fff59d,stroke:#f9a825,stroke-width:2px
+    class Q3 new
+{{< /mermaid >}}
 
 ```yaml
 architecture_fitness:
@@ -153,22 +276,31 @@ architecture_fitness:
 
 ## A 90-second demo that lands
 
-The clearest demo to a lecturer is also the simplest:
+The clearest demo to a lecturer is also the simplest. The sequence below is the entire thesis compressed: **architecture is a property the team must continuously defend, not a one-time deliverable**.
 
-1. Open the project. Pipeline on `main` is green.
-2. Open a fresh MR. Add **one line** to a view: `Pengajuan.objects.filter(status="disetujui")`.
-3. Push. Watch the `architecture_fitness` job go red within 30 seconds:
-   ```
-   AssertionError: View pengajuan masih query ORM langsung:
-     pengajuan/views/views_kaprodi.py
-   Pakai PengajuanRepository / PengajuanService.
-   ```
-4. Try to click **Merge**. GitLab blocks it because the pipeline failed.
-5. Remove the line. Pipeline green. Merge unblocks.
+{{< mermaid >}}
+sequenceDiagram
+    autonumber
+    actor Dev
+    participant Git as GitLab
+    participant CI as Pipeline
+    participant Reviewer
 
-![Three-frame timeline: frame 1 "MR opened, green", frame 2 "violating commit pushed, red, merge button greyed out with a small lock icon", frame 3 "violation removed, green again, merge button live"](/images/fitness-demo-block-merge.png)
-
-This sequence is the whole thesis compressed: **architecture is a property the team must continuously defend, not a one-time deliverable**.
+    Dev->>Git: Open MR (clean diff)
+    Git->>CI: Run pipeline
+    CI-->>Git: All green
+    Note over Dev,Reviewer: Demo starts here
+    Dev->>Git: Push commit adding<br/>Pengajuan.objects.filter(...) to view
+    Git->>CI: Re-run pipeline
+    CI->>CI: architecture_fitness checks diff
+    CI-->>Git: Job red with file:line
+    Git-->>Dev: Merge button disabled
+    Dev->>Reviewer: "See, even I cannot merge this."
+    Dev->>Git: Revert the offending line
+    Git->>CI: Re-run pipeline
+    CI-->>Git: Green again
+    Git-->>Dev: Merge re-enabled
+{{< /mermaid >}}
 
 ## What fitness functions are not
 
