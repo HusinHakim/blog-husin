@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Portofolio &ndash; Husin Hidayatul</title>
-<meta name="description" content="Portofolio Husin Hidayatul: software engineer, backend Django, testing, dan observability.">
-<meta property="og:title" content="Portofolio &ndash; Husin Hidayatul">
-<meta property="og:description" content="Software engineer, backend Django, testing, dan observability.">
+<title>husin@portfolio &ndash; Husin Hidayatul</title>
+<meta name="description" content="Interactive terminal portfolio of Husin Hidayatul: software engineer focused on backend Django, testing, and observability. Type a command to explore.">
+<meta property="og:title" content="husin@portfolio &ndash; Husin Hidayatul">
+<meta property="og:description" content="Interactive terminal portfolio. Type 'help' to start.">
 <meta property="og:type" content="website">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,399 +15,276 @@
 
 <style>
 /* ==========================================================================
- * Portofolio Husin. Standalone (bukan template Hugo).
- * Palet: Solarized-light, sama dengan blog. Polish: hero typing, gradient,
- * kartu hover-lift, scroll-reveal. Edit data proyek/skill di blok script bawah.
+ * Husin's portfolio: interactive terminal. Standalone (not a Hugo template).
+ * Theme: Solarized LIGHT (matches the blog). Edit content in the DATA block.
  * ========================================================================== */
 :root {
-  --bg:          #fdf6e3;  /* base3  */
-  --bg-2:        #eee8d5;  /* base2  */
-  --bg-3:        #e7e0c9;
-  --text:        #586e75;  /* base01 */
-  --text-bold:   #073642;  /* base02 */
-  --muted:       #93a1a1;  /* base1  */
-  --accent:      #268bd2;  /* blue   */
-  --accent-2:    #2aa198;  /* cyan   */
-  --accent-3:    #6c71c4;  /* violet */
-  --border:      #ddd6c1;
-  --shadow:      rgba(7, 54, 66, 0.10);
-  --radius:      12px;
-  --maxw:        62rem;
+  /* Solarized base (light) */
+  --base3:  #fdf6e3; --base2:  #eee8d5; --base1:  #93a1a1; --base0:  #839496;
+  --base00: #657b83; --base01: #586e75; --base02: #073642; --base03: #002b36;
+  /* Solarized accents */
+  --yellow: #b58900; --orange: #cb4b16; --red: #dc322f; --magenta: #d33682;
+  --violet: #6c71c4; --blue: #268bd2; --cyan: #2aa198; --green: #859900;
+
+  --bg:      var(--base3);
+  --fg:      var(--base01);
+  --bold:    var(--base02);
+  --muted:   var(--base1);
+  --win-bd:  #ddd6c1;
+  --shadow:  rgba(7, 54, 66, 0.18);
 }
 
 * { box-sizing: border-box; }
-
-html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
-
+html, body { height: 100%; }
 body {
   margin: 0;
   background:
-    radial-gradient(60rem 40rem at 80% -10%, rgba(38, 139, 210, 0.10), transparent 60%),
-    radial-gradient(50rem 35rem at -10% 10%, rgba(42, 161, 152, 0.10), transparent 55%),
+    radial-gradient(55rem 38rem at 82% -8%, rgba(38,139,210,0.12), transparent 60%),
+    radial-gradient(48rem 34rem at -8% 4%, rgba(42,161,152,0.12), transparent 55%),
+    radial-gradient(40rem 40rem at 50% 120%, rgba(108,113,196,0.10), transparent 60%),
     var(--bg);
-  background-attachment: fixed;
-  color: var(--text);
-  font-family: 'Ubuntu', system-ui, -apple-system, sans-serif;
-  font-size: 16px;
-  line-height: 1.6;
+  color: var(--fg);
+  font-family: 'Ubuntu Mono', ui-monospace, Consolas, monospace;
+  font-size: 15.5px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-}
-
-a { color: var(--accent); text-decoration: none; }
-
-.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 1.5rem; }
-
-.mono { font-family: 'Ubuntu Mono', monospace; }
-
-/* --- Navbar --------------------------------------------------------------- */
-.nav {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  backdrop-filter: saturate(140%) blur(8px);
-  background: rgba(253, 246, 227, 0.78);
-  border-bottom: 1px solid var(--border);
-}
-.nav__inner {
-  max-width: var(--maxw);
-  margin: 0 auto;
-  padding: 0.7rem 1.5rem;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  min-height: 100vh;
 }
-.nav__brand {
-  font-family: 'Ubuntu Mono', monospace;
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: var(--bg);
-  background: var(--text-bold);
-  padding: 0.3rem 0.7rem;
-  border-radius: 6px;
-}
-.nav__brand:hover { background: var(--accent); }
-.nav__links { display: flex; align-items: center; gap: 1.3rem; }
-.nav__link {
-  position: relative;
-  color: var(--text);
-  font-size: 0.95rem;
-  padding: 0.2rem 0;
-}
-.nav__link::after {
-  content: "";
-  position: absolute; left: 0; bottom: -2px;
-  width: 0; height: 2px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  transition: width 0.22s ease;
-}
-.nav__link:hover { color: var(--text-bold); }
-.nav__link:hover::after { width: 100%; }
-.nav__ext { color: var(--muted); }
-.nav__toggle { display: none; }
+a { color: var(--blue); text-decoration: none; }
 
-@media (max-width: 640px) {
-  .nav__links {
-    position: absolute; top: 100%; left: 0; right: 0;
-    flex-direction: column; align-items: flex-start; gap: 0.2rem;
-    background: var(--bg); border-bottom: 1px solid var(--border);
-    padding: 0.5rem 1.5rem 1rem;
-    transform: translateY(-8px); opacity: 0; pointer-events: none;
-    transition: opacity 0.2s ease, transform 0.2s ease;
-  }
-  .nav__links.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
-  .nav__link { padding: 0.5rem 0; width: 100%; }
-  .nav__toggle {
-    display: inline-flex; flex-direction: column; gap: 4px;
-    background: none; border: 0; cursor: pointer; padding: 0.4rem;
-  }
-  .nav__toggle span { width: 22px; height: 2px; background: var(--text-bold); display: block; }
+/* faint grid backdrop */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(7,54,66,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(7,54,66,0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
 }
 
-/* --- Hero ----------------------------------------------------------------- */
-.hero { padding: 5.5rem 0 3.5rem; }
-.hero__hello {
-  font-family: 'Ubuntu Mono', monospace;
-  color: var(--accent-2);
-  font-size: 0.95rem;
-  letter-spacing: 0.02em;
-  margin-bottom: 0.8rem;
+/* --- Top bar -------------------------------------------------------------- */
+.topbar {
+  position: relative; z-index: 2;
+  width: 100%; max-width: 64rem; margin: 0 auto;
+  padding: 1rem 1.2rem 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
 }
-.hero__name {
-  font-size: clamp(2.6rem, 7vw, 4.2rem);
-  font-weight: 700;
-  line-height: 1.05;
-  margin: 0 0 0.6rem;
-  background: linear-gradient(100deg, var(--accent) 10%, var(--accent-2) 55%, var(--accent-3) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.topbar__brand {
+  font-family: 'Ubuntu Mono', monospace; font-weight: 700; font-size: 1rem;
+  color: var(--bg); background: var(--bold); padding: 0.28rem 0.65rem; border-radius: 6px;
 }
-.hero__role {
-  font-size: clamp(1.2rem, 3vw, 1.7rem);
-  font-weight: 500;
-  color: var(--text-bold);
-  min-height: 1.6em;
-  margin: 0 0 1.2rem;
-}
-.hero__role .typed { border-bottom: 2px solid var(--accent); }
-.hero__caret {
-  display: inline-block; width: 0.6ch; margin-left: 1px;
-  background: var(--accent); color: transparent;
-  animation: blink 1s step-end infinite;
-}
-@keyframes blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
-.hero__lead { max-width: 38rem; color: var(--text); font-size: 1.05rem; margin: 0 0 1.6rem; }
-.hero__cta { display: flex; flex-wrap: wrap; gap: 0.7rem; }
-.btn {
-  display: inline-flex; align-items: center; gap: 0.4rem;
-  font-family: 'Ubuntu Mono', monospace; font-size: 0.9rem;
-  padding: 0.5rem 1rem; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--bg-2); color: var(--text-bold);
-  transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-.btn:hover { transform: translateY(-2px); border-color: var(--accent); color: var(--accent); }
-.btn--primary { background: var(--text-bold); color: var(--bg); border-color: var(--text-bold); }
-.btn--primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.topbar__brand:hover { background: var(--blue); }
+.topbar__nav { display: flex; gap: 1.1rem; font-size: 0.9rem; }
+.topbar__nav a { color: var(--base00); }
+.topbar__nav a:hover { color: var(--blue); }
 
-/* --- Sections ------------------------------------------------------------- */
-.section { padding: 3rem 0; }
-.section__title {
-  font-family: 'Ubuntu Mono', monospace;
-  font-size: 1.5rem; font-weight: 700; color: var(--text-bold);
-  margin: 0 0 0.4rem;
-}
-.section__title::before { content: "# "; color: var(--accent); }
-.section__sub { color: var(--muted); margin: 0 0 2rem; font-size: 0.95rem; }
-
-/* --- Projects ------------------------------------------------------------- */
-.projects { display: grid; gap: 1.2rem; grid-template-columns: 1fr; }
-@media (min-width: 720px) { .projects { grid-template-columns: 1fr 1fr; } }
-
-.card {
-  position: relative;
+/* --- Terminal window ------------------------------------------------------ */
+.term-shell {
+  position: relative; z-index: 1; flex: 1;
+  width: 100%; max-width: 64rem; margin: 0.9rem auto 1.4rem;
+  padding: 0 1.2rem;
   display: flex; flex-direction: column;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.3rem 1.4rem;
+}
+.term {
+  display: flex; flex-direction: column;
+  flex: 1; min-height: 60vh;
+  background: rgba(253, 246, 227, 0.92);
+  border: 1px solid var(--win-bd);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px var(--shadow);
   overflow: hidden;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  backdrop-filter: blur(3px);
 }
-.card::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
-  transform: scaleX(0); transform-origin: left; transition: transform 0.25s ease;
+.term__bar {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--base2);
+  border-bottom: 1px solid var(--win-bd);
 }
-.card:hover { transform: translateY(-5px); box-shadow: 0 14px 30px var(--shadow); border-color: var(--accent); }
-.card:hover::before { transform: scaleX(1); }
-.card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem; }
-.card__title { font-size: 1.2rem; font-weight: 700; color: var(--text-bold); margin: 0; }
-.card__year { font-family: 'Ubuntu Mono', monospace; font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
-.card__role { font-family: 'Ubuntu Mono', monospace; font-size: 0.78rem; color: var(--accent); margin-top: 0.2rem; }
-.card__desc { font-size: 0.94rem; margin: 0.7rem 0 1rem; }
-.card__tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; padding: 0; list-style: none; }
-.card__tags li {
-  font-family: 'Ubuntu Mono', monospace; font-size: 0.74rem;
-  padding: 0.1rem 0.5rem; border-radius: 6px;
-  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+.term__dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.term__dot--r { background: var(--red); }
+.term__dot--y { background: var(--yellow); }
+.term__dot--g { background: var(--green); }
+.term__title {
+  flex: 1; text-align: center; font-size: 0.82rem; color: var(--base00);
+  letter-spacing: 0.02em; margin-right: 2.4rem;
 }
-.card__tags li::before { content: "#"; opacity: 0.55; }
-.card__links { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: auto; font-family: 'Ubuntu Mono', monospace; font-size: 0.85rem; }
-.card__link { color: var(--text-bold); border-bottom: 1px dotted currentColor; }
-.card__link:hover { color: var(--accent); }
+.term__body {
+  flex: 1; overflow-y: auto;
+  padding: 1rem 1.1rem 1.2rem;
+  scrollbar-width: thin; scrollbar-color: var(--base1) transparent;
+}
+.term__body::-webkit-scrollbar { width: 9px; }
+.term__body::-webkit-scrollbar-thumb { background: var(--base1); border-radius: 9px; }
 
-/* --- Skills --------------------------------------------------------------- */
-.skills { display: grid; gap: 1rem; grid-template-columns: 1fr; }
-@media (min-width: 640px) { .skills { grid-template-columns: 1fr 1fr; } }
-.skillgroup {
-  background: var(--bg-2); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 1.1rem 1.2rem;
+/* output lines */
+.line { white-space: pre-wrap; word-break: break-word; margin: 0.05rem 0; }
+.line--cmd { color: var(--bold); }
+.muted { color: var(--muted); }
+.b { color: var(--bold); font-weight: 700; }
+.c-blue { color: var(--blue); } .c-cyan { color: var(--cyan); } .c-green { color: var(--green); }
+.c-violet { color: var(--violet); } .c-yellow { color: var(--yellow); } .c-orange { color: var(--orange); }
+.c-red { color: var(--red); } .c-magenta { color: var(--magenta); }
+.out a { color: var(--violet); border-bottom: 1px dotted currentColor; }
+.out a:hover { color: var(--blue); }
+
+/* prompt */
+.usr { color: var(--green); } .at { color: var(--base00); } .host { color: var(--blue); }
+.path { color: var(--cyan); } .sym { color: var(--base00); }
+
+/* the live input line */
+.cli { display: flex; align-items: baseline; gap: 0.5ch; margin-top: 0.25rem; }
+.cli__prompt { white-space: nowrap; }
+.cli__input {
+  flex: 1; min-width: 4ch;
+  background: transparent; border: 0; outline: 0; padding: 0; margin: 0;
+  font: inherit; color: var(--bold); caret-color: var(--blue);
 }
-.skillgroup__label {
-  font-family: 'Ubuntu Mono', monospace; font-size: 0.8rem; color: var(--muted);
-  margin-bottom: 0.7rem;
+.cli.disabled { opacity: 0.55; }
+
+/* boot caret */
+.caret { display: inline-block; width: 0.6ch; background: var(--blue); color: transparent; animation: blink 1.05s step-end infinite; }
+@keyframes blink { 0%,50%{opacity:1;} 50.01%,100%{opacity:0;} }
+
+/* rendered blocks inside terminal */
+.help-grid { display: grid; grid-template-columns: max-content 1fr; gap: 0.1rem 1.2rem; margin: 0.35rem 0 0.2rem; }
+.help-grid .cmd { color: var(--cyan); }
+.help-grid .dsc { color: var(--fg); }
+
+.proj { border-left: 2px solid var(--cyan); padding: 0.15rem 0 0.35rem 0.8rem; margin: 0.55rem 0; }
+.proj__h { color: var(--bold); font-weight: 700; }
+.proj__meta { color: var(--muted); }
+.proj__tags { color: var(--cyan); }
+.proj__links { margin-top: 0.15rem; }
+
+.skill-row { display: grid; grid-template-columns: 8rem 1fr; gap: 0.6rem; padding: 0.12rem 0; }
+.skill-row .k { color: var(--yellow); }
+.skill-row .v { color: var(--fg); }
+
+/* clickable command chips */
+.chips {
+  position: relative; z-index: 2;
+  width: 100%; max-width: 64rem; margin: 0 auto 1.6rem;
+  padding: 0 1.2rem; display: flex; flex-wrap: wrap; gap: 0.45rem;
 }
-.skillgroup__label::before { content: "$ ls "; color: var(--accent-2); }
-.skillgroup__items { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 .chip {
-  font-size: 0.85rem; padding: 0.25rem 0.7rem; border-radius: 999px;
-  background: var(--bg); border: 1px solid var(--border); color: var(--text-bold);
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  font-family: 'Ubuntu Mono', monospace; font-size: 0.82rem; cursor: pointer;
+  padding: 0.28rem 0.7rem; border-radius: 999px;
+  background: var(--base2); border: 1px solid var(--win-bd); color: var(--bold);
+  transition: transform 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
-.chip:hover { transform: translateY(-2px); border-color: var(--accent); }
+.chip::before { content: "$ "; color: var(--cyan); }
+.chip:hover { transform: translateY(-2px); border-color: var(--blue); color: var(--blue); }
 
-/* --- About ---------------------------------------------------------------- */
-.about__grid { display: grid; gap: 1.5rem; grid-template-columns: 1fr; }
-@media (min-width: 760px) { .about__grid { grid-template-columns: 3fr 2fr; align-items: start; } }
-.about__body { font-size: 1rem; }
-.about__body strong { color: var(--text-bold); }
-.about__card {
-  background: var(--bg-2); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 1.2rem 1.3rem;
+/* footer */
+.foot {
+  position: relative; z-index: 2; text-align: center;
+  padding: 0.4rem 1.2rem 1.6rem; color: var(--muted); font-size: 0.8rem;
 }
-.about__card h3 { font-family: 'Ubuntu Mono', monospace; font-size: 0.95rem; color: var(--text-bold); margin: 0 0 0.7rem; }
-.about__contacts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; font-family: 'Ubuntu Mono', monospace; font-size: 0.9rem; }
-.about__contacts a { color: var(--text-bold); border-bottom: 1px dotted currentColor; }
-.about__contacts a:hover { color: var(--accent); }
-.about__contacts .k { color: var(--muted); display: inline-block; width: 5rem; }
+.foot a { color: var(--base00); } .foot a:hover { color: var(--blue); }
 
-/* --- Footer --------------------------------------------------------------- */
-.foot { border-top: 1px solid var(--border); margin-top: 2rem; padding: 2rem 0 3rem; }
-.foot__inner { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; justify-content: space-between; font-size: 0.85rem; color: var(--muted); }
-.foot a { color: var(--text); border-bottom: 1px dotted currentColor; }
-.foot a:hover { color: var(--accent); }
-
-/* --- Scroll reveal -------------------------------------------------------- */
-.reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s ease; }
-.reveal.is-visible { opacity: 1; transform: none; }
-
+@media (max-width: 600px) {
+  body { font-size: 14.5px; }
+  .topbar__nav { gap: 0.8rem; }
+  .skill-row { grid-template-columns: 1fr; gap: 0; }
+  .help-grid { grid-template-columns: 1fr; gap: 0; }
+  .help-grid .dsc { color: var(--muted); margin-bottom: 0.3rem; }
+}
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  .reveal { opacity: 1; transform: none; transition: none; }
-  .hero__caret { animation: none; }
-  * { transition: none !important; }
+  .caret { animation: none; } * { transition: none !important; }
 }
 </style>
 </head>
 <body>
 
-<!-- NAV -->
-<nav class="nav">
-  <div class="nav__inner">
-    <a class="nav__brand" href="/">~/husinhidayatul</a>
-    <button class="nav__toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">
-      <span></span><span></span><span></span>
-    </button>
-    <div class="nav__links" id="navLinks">
-      <a class="nav__link" href="#projects">projects</a>
-      <a class="nav__link" href="#skills">skills</a>
-      <a class="nav__link" href="#about">about</a>
-      <a class="nav__link nav__ext" href="/post/">blog &#8599;</a>
+<div class="topbar">
+  <a class="topbar__brand" href="/">~/husinhidayatul</a>
+  <nav class="topbar__nav">
+    <a href="/post/">blog</a>
+    <a href="/about/">about</a>
+  </nav>
+</div>
+
+<div class="term-shell">
+  <div class="term" id="term">
+    <div class="term__bar">
+      <span class="term__dot term__dot--r"></span>
+      <span class="term__dot term__dot--y"></span>
+      <span class="term__dot term__dot--g"></span>
+      <span class="term__title">husin@portfolio: ~</span>
+    </div>
+    <div class="term__body" id="body" tabindex="0">
+      <!-- output filled via JS; the input line is appended after boot -->
     </div>
   </div>
-</nav>
+</div>
 
-<!-- HERO -->
-<header class="hero">
-  <div class="wrap">
-    <div class="hero__hello mono">// hello world</div>
-    <h1 class="hero__name">Husin Hidayatul</h1>
-    <p class="hero__role">i'm <span class="typed mono" id="typed"></span><span class="hero__caret">.</span></p>
-    <p class="hero__lead">
-      Saya membangun backend dan tooling internal, lalu mendokumentasikan apa yang saya pelajari di
-      <a href="/post/">blog ini</a>. Fokus saya: kode yang teruji, bukan sekadar jalan.
-    </p>
-    <div class="hero__cta">
-      <a class="btn btn--primary" href="#projects">Lihat proyek</a>
-      <a class="btn" href="https://github.com/HusinHakim" target="_blank" rel="noopener">GitHub</a>
-      <a class="btn" href="https://www.linkedin.com/in/" target="_blank" rel="noopener">LinkedIn</a>
-      <a class="btn" href="mailto:husinhidayatul@gmail.com">Email</a>
-    </div>
-  </div>
-</header>
+<div class="chips" id="chips"></div>
 
-<!-- PROJECTS -->
-<section class="section" id="projects">
-  <div class="wrap">
-    <h2 class="section__title reveal">projects</h2>
-    <p class="section__sub reveal">Beberapa hal yang saya bangun dan rawat.</p>
-    <div class="projects" id="projectGrid"></div>
-  </div>
-</section>
-
-<!-- SKILLS -->
-<section class="section" id="skills">
-  <div class="wrap">
-    <h2 class="section__title reveal">skills</h2>
-    <p class="section__sub reveal">Alat yang sehari-hari saya pakai.</p>
-    <div class="skills" id="skillGrid"></div>
-  </div>
-</section>
-
-<!-- ABOUT -->
-<section class="section" id="about">
-  <div class="wrap">
-    <h2 class="section__title reveal">about</h2>
-    <div class="about__grid reveal">
-      <div class="about__body">
-        <p>
-          Saya <strong>Husin Hidayatul</strong>, mahasiswa di Indonesia yang sedang membangun
-          pengalaman engineering di proyek backend Django dan tools internal.
-        </p>
-        <p>
-          Tulisan di blog saya lahir dari masalah konkret di sprint: saya pecahkan, lalu
-          dokumentasikan. Yang sedang saya pelajari sekarang: testing yang lebih dari sekadar
-          coverage, profiling, dan observability.
-        </p>
-      </div>
-      <aside class="about__card">
-        <h3>$ whoami</h3>
-        <ul class="about__contacts">
-          <li><span class="k">role</span> Backend / QA</li>
-          <li><span class="k">edu</span> ganti: kampus &amp; jurusan</li>
-          <li><span class="k">email</span> <a href="mailto:husinhidayatul@gmail.com">husinhidayatul@gmail.com</a></li>
-          <li><span class="k">github</span> <a href="https://github.com/HusinHakim" target="_blank" rel="noopener">@HusinHakim</a></li>
-          <li><span class="k">linkedin</span> <a href="https://www.linkedin.com/in/" target="_blank" rel="noopener">/in/ (ganti)</a></li>
-        </ul>
-      </aside>
-    </div>
-  </div>
-</section>
-
-<!-- FOOTER -->
 <footer class="foot">
-  <div class="wrap foot__inner">
-    <span class="mono">&copy; <span id="year"></span> Husin Hidayatul</span>
-    <span><a href="/">home</a> &middot; <a href="/post/">blog</a> &middot; <a href="/about/">about</a></span>
-  </div>
+  <span>&copy; <span id="year"></span> Husin Hidayatul &middot; built with HTML &amp; a bit of JS &middot;
+  <a href="/">home</a> &middot; <a href="/post/">blog</a></span>
 </footer>
+
+<noscript>
+  <div style="max-width:48rem;margin:1rem auto;padding:0 1.2rem;font-family:sans-serif;color:#586e75">
+    <h1>Husin Hidayatul</h1>
+    <p>Software engineer: backend Django, testing, observability. This portfolio is interactive and needs JavaScript.
+    In the meantime, visit the <a href="/post/">blog</a> or email
+    <a href="mailto:husinhidayatul@gmail.com">husinhidayatul@gmail.com</a>.</p>
+  </div>
+</noscript>
 
 <script>
 /* ============================================================================
- * EDIT KONTEN DI SINI. Tambah/ubah/hapus item di dua array di bawah.
+ * EDIT CONTENT HERE. Change the text/arrays below; the terminal logic further
+ * down does not need to be touched.
  * ========================================================================== */
+var ME = {
+  name: "Husin Hidayatul",
+  tagline: "software engineer · backend Django, testing, observability",
+  about: [
+    "I'm Husin Hidayatul, a student in Indonesia building up my engineering",
+    "experience on Django backends and internal tooling.",
+    "",
+    "The posts on my blog come from concrete problems I hit during sprints:",
+    "I solve them, then write them down. What I'm digging into now: testing",
+    "that goes beyond coverage, profiling, and observability."
+  ],
+  edu: "change me: university & major",
+  role: "Backend / QA"
+};
 
-// Frasa yang diketik di hero (bergantian). Ganti sesuka hati.
-var ROLES = [
-  "a backend engineer",
-  "a Django developer",
-  "a testing enthusiast",
-  "into observability"
+var CONTACTS = [
+  { key: "email",    label: "husinhidayatul@gmail.com", url: "mailto:husinhidayatul@gmail.com" },
+  { key: "github",   label: "@HusinHakim",              url: "https://github.com/HusinHakim" },
+  { key: "linkedin", label: "/in/ (change me)",         url: "https://www.linkedin.com/in/" }
 ];
 
-// Proyek. Field: name, year, role, desc, tags[], github, demo (demo opsional).
 var PROJECTS = [
   {
-    name: "Pengajuan Guru Besar",
-    year: "2026",
-    role: "Backend & QA",
-    desc: "Sistem pengajuan jabatan Guru Besar berbasis Django: workflow Kaprodi sampai Admin, dengan monitoring Prometheus + Grafana dan alert ke Discord. Saya pegang testing-nya: TDD, BDD (Schemathesis), mutation testing (mutmut), dan fitness functions.",
-    tags: ["Django", "Postgres", "Prometheus", "Grafana", "GitLab CI"],
-    github: "https://github.com/HusinHakim",
-    demo: ""
+    name: "Pengajuan Guru Besar", year: "2026", role: "Backend & QA",
+    desc: "A Django-based system for submitting professorship (Guru Besar) applications: workflow from program chair to admin, with Prometheus + Grafana monitoring and Discord alerting. I owned the testing: TDD, BDD (Schemathesis), mutation testing (mutmut), and fitness functions.",
+    tech: ["Django", "Postgres", "Prometheus", "Grafana", "GitLab CI"],
+    github: "https://github.com/HusinHakim", demo: ""
   },
   {
-    name: "Project Kedua (ganti ini)",
-    year: "2025",
-    role: "Fullstack",
-    desc: "Deskripsi singkat: masalah yang diselesaikan, peran Anda, dan hasilnya dalam 1-2 kalimat.",
-    tags: ["TypeScript", "React", "Next.js"],
-    github: "https://github.com/HusinHakim",
-    demo: "https://example.com"
+    name: "Second Project (change me)", year: "2025", role: "Fullstack",
+    desc: "Short description: the problem you solved, your role, and the outcome in one or two sentences.",
+    tech: ["TypeScript", "React", "Next.js"],
+    github: "https://github.com/HusinHakim", demo: "https://example.com"
   },
   {
-    name: "Project Ketiga (ganti ini)",
-    year: "2025",
-    role: "Backend",
-    desc: "Duplikat atau hapus blok ini sesuai jumlah proyek yang ingin ditampilkan.",
-    tags: ["Python", "FastAPI", "Redis", "Docker"],
-    github: "https://github.com/HusinHakim",
-    demo: ""
+    name: "Third Project (change me)", year: "2025", role: "Backend",
+    desc: "Duplicate or remove this block to match the number of projects you want to show.",
+    tech: ["Python", "FastAPI", "Redis", "Docker"],
+    github: "https://github.com/HusinHakim", demo: ""
   }
 ];
 
-// Skill, dikelompokkan. Ganti label & isi sesuai kebutuhan.
 var SKILLS = [
   { label: "languages",  items: ["Python", "TypeScript", "SQL"] },
   { label: "frameworks", items: ["Django", "FastAPI", "React", "Next.js"] },
@@ -415,99 +292,255 @@ var SKILLS = [
   { label: "testing",    items: ["pytest", "Schemathesis", "mutmut", "Locust"] }
 ];
 
-/* ----------------------------- Rendering --------------------------------- */
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, function (c) {
-    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+/* ===================== terminal logic (safe to skip) ====================== */
+var body  = document.getElementById("body");
+var term  = document.getElementById("term");
+var PROMPT = '<span class="usr">husin</span><span class="at">@</span>'
+           + '<span class="host">portfolio</span><span class="sym">:</span>'
+           + '<span class="path">~</span><span class="sym">$</span>';
+var history = [], hidx = -1, cli = null, input = null, booting = true;
+
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
+function scrollDown(){ body.scrollTop = body.scrollHeight; }
+
+function out(html, cls){
+  var d = document.createElement("div");
+  d.className = "line out" + (cls ? " " + cls : "");
+  d.innerHTML = html;
+  body.appendChild(d); scrollDown(); return d;
+}
+function echoCmd(text){
+  out(PROMPT + " <span class='line--cmd'>" + esc(text) + "</span>");
+}
+
+/* ---------- command outputs ---------- */
+function cmdHelp(){
+  var rows = [
+    ["help",     "show this list of commands"],
+    ["whoami",   "one line about me"],
+    ["about",    "short bio"],
+    ["projects", "list projects (alias: ls projects)"],
+    ["open &lt;n&gt;",  "open a project's details/repo, e.g. 'open 1'"],
+    ["skills",   "all skills (or: ls languages|frameworks|tools|testing)"],
+    ["contact",  "email & socials"],
+    ["github / linkedin / email", "open the related link"],
+    ["clear",    "clear the screen"],
+    ["banner",   "show the welcome banner again"]
+  ];
+  var g = '<div class="help-grid">';
+  rows.forEach(function(r){ g += '<span class="cmd">'+r[0]+'</span><span class="dsc">'+r[1]+'</span>'; });
+  g += '</div><div class="muted">Tip: use &uarr;/&darr; for history, Tab to autocomplete, or click a chip below.</div>';
+  out(g);
+}
+function cmdWhoami(){
+  out('<span class="b">'+esc(ME.name)+'</span> <span class="muted">&mdash;</span> '+esc(ME.tagline));
+}
+function cmdAbout(){
+  ME.about.forEach(function(l){ out(l === "" ? "&nbsp;" : esc(l)); });
+}
+function projLine(i){
+  var p = PROJECTS[i];
+  return '<span class="c-cyan">['+(i+1)+']</span> <span class="b">'+esc(p.name)+'</span> '
+       + '<span class="muted">'+esc(p.year)+' · '+esc(p.role)+'</span>';
+}
+function cmdProjects(){
+  out('<span class="c-blue">'+PROJECTS.length+' projects</span> <span class="muted">&mdash; type</span> <span class="c-cyan">open &lt;n&gt;</span> <span class="muted">for details:</span>');
+  PROJECTS.forEach(function(_, i){ out(projLine(i)); });
+}
+function renderProject(i){
+  var p = PROJECTS[i];
+  var h = '<div class="proj">';
+  h += '<div class="proj__h">'+esc(p.name)+' <span class="proj__meta">('+esc(p.year)+' · '+esc(p.role)+')</span></div>';
+  h += '<div>'+esc(p.desc)+'</div>';
+  if (p.tech && p.tech.length) h += '<div class="proj__tags">'+p.tech.map(function(t){return "#"+esc(t);}).join(" ")+'</div>';
+  var links = [];
+  if (p.github) links.push('<a href="'+esc(p.github)+'" target="_blank" rel="noopener">github &#8599;</a>');
+  if (p.demo)   links.push('<a href="'+esc(p.demo)+'" target="_blank" rel="noopener">demo &#8599;</a>');
+  if (links.length) h += '<div class="proj__links">'+links.join(' &nbsp; ')+'</div>';
+  h += '</div>';
+  out(h);
+}
+function findProject(arg){
+  if (!arg) return -1;
+  var n = parseInt(arg, 10);
+  if (!isNaN(n) && n >= 1 && n <= PROJECTS.length) return n - 1;
+  arg = arg.toLowerCase();
+  for (var i = 0; i < PROJECTS.length; i++)
+    if (PROJECTS[i].name.toLowerCase().indexOf(arg) !== -1) return i;
+  return -1;
+}
+function cmdSkills(group){
+  var list = SKILLS;
+  if (group) {
+    list = SKILLS.filter(function(s){ return s.label === group.toLowerCase(); });
+    if (!list.length) { out('<span class="c-red">ls: '+esc(group)+': no such group.</span> Try: languages, frameworks, tools, testing.'); return; }
+  }
+  list.forEach(function(s){
+    out('<div class="skill-row"><span class="k">'+esc(s.label)+'</span><span class="v">'+s.items.map(esc).join('  ·  ')+'</span></div>');
+  });
+}
+function cmdContact(){
+  CONTACTS.forEach(function(c){
+    out('<div class="skill-row"><span class="k">'+esc(c.key)+'</span><span class="v"><a href="'+esc(c.url)+'" target="_blank" rel="noopener">'+esc(c.label)+'</a></span></div>');
+  });
+}
+function openTarget(t){
+  var map = {
+    github: "https://github.com/HusinHakim",
+    linkedin: "https://www.linkedin.com/in/",
+    email: "mailto:husinhidayatul@gmail.com",
+    blog: "/post/", repo: "https://github.com/HusinHakim"
+  };
+  if (map[t]) { out('<span class="c-green">Opening '+esc(t)+'…</span>'); window.open(map[t], t === "email" ? "_self" : "_blank"); return true; }
+  return false;
+}
+function banner(){
+  out('<span class="c-blue b">husin portfolio</span> <span class="muted">[version 1.0.0]</span>');
+  out('<span class="muted">(c) 2026 '+esc(ME.name)+'. all projects are real.</span>');
+  out("&nbsp;");
+  out('Type <span class="c-cyan">help</span> for commands, or click a chip below.');
+}
+
+/* ---------- dispatcher ---------- */
+var CMDS = ["help","whoami","about","projects","skills","contact","clear","banner","open","ls","cat","github","linkedin","email","blog","date","echo","sudo"];
+
+function run(raw){
+  var line = raw.trim();
+  echoCmd(line);
+  if (!line) return;
+  history.push(line); hidx = history.length;
+  var parts = line.split(/\s+/);
+  var cmd = parts[0].toLowerCase();
+  var arg = parts[1];
+  switch (cmd) {
+    case "help": cmdHelp(); break;
+    case "whoami": cmdWhoami(); break;
+    case "about": cmdAbout(); break;
+    case "projects": cmdProjects(); break;
+    case "skills": cmdSkills(); break;
+    case "contact": case "socials": cmdContact(); break;
+    case "clear": clearScreen(); break;
+    case "banner": banner(); break;
+    case "date": out('<span class="muted">'+esc(new Date().toString())+'</span>'); break;
+    case "echo": out(esc(parts.slice(1).join(" "))); break;
+    case "github": case "linkedin": case "email": case "blog": openTarget(cmd); break;
+    case "ls":
+      if (!arg || arg === "projects") { cmdProjects(); }
+      else if (arg === "skills") { cmdSkills(); }
+      else if (["languages","frameworks","tools","testing"].indexOf(arg) !== -1) { cmdSkills(arg); }
+      else if (arg === "contact") { cmdContact(); }
+      else { out('<span class="muted">projects  skills  contact  about</span>'); }
+      break;
+    case "cat":
+      if (arg === "about" || arg === "about.md") { cmdAbout(); break; }
+      /* fall through to open-by-name */
+    case "open": {
+      if ((cmd === "open") && arg && openTarget(arg.toLowerCase())) break;
+      var idx = findProject(parts.slice(1).join(" "));
+      if (idx === -1) { out('<span class="c-red">'+esc(cmd)+': "'+esc(parts.slice(1).join(" "))+'" not found.</span> Type <span class="c-cyan">projects</span>.'); break; }
+      renderProject(idx);
+      break;
+    }
+    case "sudo": out('<span class="c-orange">husin is not in the sudoers file. This incident will be reported. 😏</span>'); break;
+    default:
+      out('<span class="c-red">command not found: '+esc(cmd)+'</span> — type <span class="c-cyan">help</span>.');
+  }
+}
+
+function clearScreen(){
+  var lines = body.querySelectorAll(".line");
+  lines.forEach(function(l){ l.remove(); });
+}
+
+/* ---------- live input line ---------- */
+function makeCli(){
+  if (cli) cli.remove();
+  cli = document.createElement("div");
+  cli.className = "cli";
+  cli.innerHTML = '<span class="cli__prompt">'+PROMPT+'</span>';
+  input = document.createElement("input");
+  input.className = "cli__input";
+  input.setAttribute("autocomplete","off");
+  input.setAttribute("autocapitalize","off");
+  input.setAttribute("autocorrect","off");
+  input.setAttribute("spellcheck","false");
+  input.setAttribute("aria-label","terminal input");
+  cli.appendChild(input);
+  body.appendChild(cli);
+  input.focus(); scrollDown();
+
+  input.addEventListener("keydown", function(e){
+    if (e.key === "Enter") {
+      var v = input.value; input.value = "";
+      cli.remove(); cli = null;            // freeze the entered line
+      run(v);
+      makeCli();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (hidx > 0) { hidx--; input.value = history[hidx] || ""; moveEnd(); }
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (hidx < history.length - 1) { hidx++; input.value = history[hidx] || ""; }
+      else { hidx = history.length; input.value = ""; }
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      var cur = input.value.trim().toLowerCase();
+      if (cur) {
+        var hit = CMDS.filter(function(c){ return c.indexOf(cur) === 0; });
+        if (hit.length === 1) input.value = hit[0] + " ";
+        else if (hit.length > 1) out('<span class="muted">'+hit.join("  ")+'</span>');
+      }
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l") {
+      e.preventDefault(); clearScreen();
+    }
+  });
+}
+function moveEnd(){ var v = input.value; input.value = ""; input.value = v; }
+
+/* click anywhere in the terminal -> focus the input */
+term.addEventListener("click", function(){ if (input) input.focus(); });
+
+/* chips */
+function buildChips(){
+  var wrap = document.getElementById("chips");
+  ["help","projects","skills","about","contact","clear"].forEach(function(c){
+    var b = document.createElement("button");
+    b.className = "chip"; b.type = "button"; b.textContent = c;
+    b.addEventListener("click", function(){
+      if (booting) return;
+      run(c); makeCli();
+    });
+    wrap.appendChild(b);
   });
 }
 
-function renderProjects() {
-  var html = PROJECTS.map(function (p) {
-    var tags = (p.tags || []).map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("");
-    var links = "";
-    if (p.github) links += '<a class="card__link" href="' + esc(p.github) + '" target="_blank" rel="noopener">GitHub &rarr;</a>';
-    if (p.demo)   links += '<a class="card__link" href="' + esc(p.demo) + '" target="_blank" rel="noopener">Demo &rarr;</a>';
-    return '' +
-      '<article class="card reveal">' +
-        '<div class="card__head">' +
-          '<h3 class="card__title">' + esc(p.name) + '</h3>' +
-          (p.year ? '<span class="card__year">' + esc(p.year) + '</span>' : '') +
-        '</div>' +
-        (p.role ? '<div class="card__role">' + esc(p.role) + '</div>' : '') +
-        (p.desc ? '<p class="card__desc">' + esc(p.desc) + '</p>' : '') +
-        (tags ? '<ul class="card__tags">' + tags + '</ul>' : '') +
-        (links ? '<div class="card__links">' + links + '</div>' : '') +
-      '</article>';
-  }).join("");
-  document.getElementById("projectGrid").innerHTML = html;
-}
-
-function renderSkills() {
-  var html = SKILLS.map(function (g) {
-    var chips = (g.items || []).map(function (i) { return '<span class="chip">' + esc(i) + '</span>'; }).join("");
-    return '' +
-      '<div class="skillgroup reveal">' +
-        '<div class="skillgroup__label">' + esc(g.label) + '</div>' +
-        '<div class="skillgroup__items">' + chips + '</div>' +
-      '</div>';
-  }).join("");
-  document.getElementById("skillGrid").innerHTML = html;
-}
-
-/* ----------------------------- Typing effect ----------------------------- */
-function typeLoop() {
-  var el = document.getElementById("typed");
-  if (!el) return;
+/* ---------- boot sequence (typed) ---------- */
+function boot(){
   var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (reduce) { el.textContent = ROLES[0]; return; }
-  var i = 0, j = 0, deleting = false;
-  (function tick() {
-    var word = ROLES[i];
-    el.textContent = word.slice(0, j);
-    if (!deleting && j < word.length) { j++; setTimeout(tick, 70); }
-    else if (!deleting && j === word.length) { deleting = true; setTimeout(tick, 1400); }
-    else if (deleting && j > 0) { j--; setTimeout(tick, 35); }
-    else { deleting = false; i = (i + 1) % ROLES.length; setTimeout(tick, 250); }
+  var seq = [
+    { h: '<span class="c-green">husin@portfolio</span><span class="muted">:~$ ./welcome.sh</span>' },
+    { h: '<span class="c-blue b">husin portfolio</span> <span class="muted">[version 1.0.0]</span>' },
+    { h: '<span class="muted">booting interactive resume… ok</span>' },
+    { h: "&nbsp;" },
+    { h: '<span class="b">'+esc(ME.name)+'</span> <span class="muted">&mdash;</span> '+esc(ME.tagline) },
+    { h: 'Type <span class="c-cyan">help</span> for commands, or click a chip below. Try <span class="c-cyan">projects</span> too.' }
+  ];
+  if (reduce) { seq.forEach(function(s){ out(s.h); }); finishBoot(); return; }
+  var i = 0;
+  (function next(){
+    if (i >= seq.length) { finishBoot(); return; }
+    out(seq[i].h); i++;
+    setTimeout(next, i <= 1 ? 380 : 260);
   })();
 }
+function finishBoot(){ booting = false; makeCli(); }
 
-/* ----------------------------- Scroll reveal ----------------------------- */
-function initReveal() {
-  var els = document.querySelectorAll(".reveal");
-  if (!("IntersectionObserver" in window)) {
-    els.forEach(function (el) { el.classList.add("is-visible"); });
-    return;
-  }
-  var io = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) {
-      if (e.isIntersecting) { e.target.classList.add("is-visible"); io.unobserve(e.target); }
-    });
-  }, { threshold: 0.12 });
-  els.forEach(function (el) { io.observe(el); });
-}
-
-/* ----------------------------- Mobile nav -------------------------------- */
-function initNav() {
-  var btn = document.getElementById("navToggle");
-  var links = document.getElementById("navLinks");
-  if (!btn || !links) return;
-  btn.addEventListener("click", function () {
-    var open = links.classList.toggle("open");
-    btn.setAttribute("aria-expanded", open ? "true" : "false");
-  });
-  links.addEventListener("click", function (e) {
-    if (e.target.tagName === "A") { links.classList.remove("open"); btn.setAttribute("aria-expanded", "false"); }
-  });
-}
-
-/* ----------------------------- Boot -------------------------------------- */
+/* ---------- start ---------- */
 document.getElementById("year").textContent = new Date().getFullYear();
-renderProjects();
-renderSkills();
-initReveal();
-initNav();
-typeLoop();
+buildChips();
+boot();
 </script>
 </body>
 </html>
