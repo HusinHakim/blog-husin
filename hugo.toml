@@ -26,7 +26,7 @@ description = "Catatan teknis seputar software engineering, testing, dan pengala
 # Footer links (Daffa-style: portfolio, LinkedIn)
 [[params.footerLinks]]
 name = "Portfolio"
-url = "https://husin-portfolio.example.com/"
+url = "/portofolio/"
 
 [[params.footerLinks]]
 name = "LinkedIn"
@@ -49,6 +49,12 @@ url = "https://github.com/"
     name = "Posts"
     url = "/post/"
     weight = 20
+
+  [[menu.main]]
+    identifier = "portofolio"
+    name = "Portofolio"
+    url = "/portofolio/"
+    weight = 30
 
 [taxonomies]
 category = "categories"
