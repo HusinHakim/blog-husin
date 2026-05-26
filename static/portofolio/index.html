@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portofolio &ndash; Husin Hidayatul</title>
+<meta name="description" content="Portofolio Husin Hidayatul: software engineer, backend Django, testing, dan observability.">
+<meta property="og:title" content="Portofolio &ndash; Husin Hidayatul">
+<meta property="og:description" content="Software engineer, backend Django, testing, dan observability.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+/* ==========================================================================
+ * Portofolio Husin. Standalone (bukan template Hugo).
+ * Palet: Solarized-light, sama dengan blog. Polish: hero typing, gradient,
+ * kartu hover-lift, scroll-reveal. Edit data proyek/skill di blok script bawah.
+ * ========================================================================== */
+:root {
+  --bg:          #fdf6e3;  /* base3  */
+  --bg-2:        #eee8d5;  /* base2  */
+  --bg-3:        #e7e0c9;
+  --text:        #586e75;  /* base01 */
+  --text-bold:   #073642;  /* base02 */
+  --muted:       #93a1a1;  /* base1  */
+  --accent:      #268bd2;  /* blue   */
+  --accent-2:    #2aa198;  /* cyan   */
+  --accent-3:    #6c71c4;  /* violet */
+  --border:      #ddd6c1;
+  --shadow:      rgba(7, 54, 66, 0.10);
+  --radius:      12px;
+  --maxw:        62rem;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(60rem 40rem at 80% -10%, rgba(38, 139, 210, 0.10), transparent 60%),
+    radial-gradient(50rem 35rem at -10% 10%, rgba(42, 161, 152, 0.10), transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: 'Ubuntu', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: none; }
+
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 1.5rem; }
+
+.mono { font-family: 'Ubuntu Mono', monospace; }
+
+/* --- Navbar --------------------------------------------------------------- */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: saturate(140%) blur(8px);
+  background: rgba(253, 246, 227, 0.78);
+  border-bottom: 1px solid var(--border);
+}
+.nav__inner {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0.7rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.nav__brand {
+  font-family: 'Ubuntu Mono', monospace;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--bg);
+  background: var(--text-bold);
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+}
+.nav__brand:hover { background: var(--accent); }
+.nav__links { display: flex; align-items: center; gap: 1.3rem; }
+.nav__link {
+  position: relative;
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 0.2rem 0;
+}
+.nav__link::after {
+  content: "";
+  position: absolute; left: 0; bottom: -2px;
+  width: 0; height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.22s ease;
+}
+.nav__link:hover { color: var(--text-bold); }
+.nav__link:hover::after { width: 100%; }
+.nav__ext { color: var(--muted); }
+.nav__toggle { display: none; }
+
+@media (max-width: 640px) {
+  .nav__links {
+    position: absolute; top: 100%; left: 0; right: 0;
+    flex-direction: column; align-items: flex-start; gap: 0.2rem;
+    background: var(--bg); border-bottom: 1px solid var(--border);
+    padding: 0.5rem 1.5rem 1rem;
+    transform: translateY(-8px); opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .nav__links.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+  .nav__link { padding: 0.5rem 0; width: 100%; }
+  .nav__toggle {
+    display: inline-flex; flex-direction: column; gap: 4px;
+    background: none; border: 0; cursor: pointer; padding: 0.4rem;
+  }
+  .nav__toggle span { width: 22px; height: 2px; background: var(--text-bold); display: block; }
+}
+
+/* --- Hero ----------------------------------------------------------------- */
+.hero { padding: 5.5rem 0 3.5rem; }
+.hero__hello {
+  font-family: 'Ubuntu Mono', monospace;
+  color: var(--accent-2);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.8rem;
+}
+.hero__name {
+  font-size: clamp(2.6rem, 7vw, 4.2rem);
+  font-weight: 700;
+  line-height: 1.05;
+  margin: 0 0 0.6rem;
+  background: linear-gradient(100deg, var(--accent) 10%, var(--accent-2) 55%, var(--accent-3) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero__role {
+  font-size: clamp(1.2rem, 3vw, 1.7rem);
+  font-weight: 500;
+  color: var(--text-bold);
+  min-height: 1.6em;
+  margin: 0 0 1.2rem;
+}
+.hero__role .typed { border-bottom: 2px solid var(--accent); }
+.hero__caret {
+  display: inline-block; width: 0.6ch; margin-left: 1px;
+  background: var(--accent); color: transparent;
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+.hero__lead { max-width: 38rem; color: var(--text); font-size: 1.05rem; margin: 0 0 1.6rem; }
+.hero__cta { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+.btn {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-family: 'Ubuntu Mono', monospace; font-size: 0.9rem;
+  padding: 0.5rem 1rem; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-2); color: var(--text-bold);
+  transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.btn:hover { transform: translateY(-2px); border-color: var(--accent); color: var(--accent); }
+.btn--primary { background: var(--text-bold); color: var(--bg); border-color: var(--text-bold); }
+.btn--primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* --- Sections ------------------------------------------------------------- */
+.section { padding: 3rem 0; }
+.section__title {
+  font-family: 'Ubuntu Mono', monospace;
+  font-size: 1.5rem; font-weight: 700; color: var(--text-bold);
+  margin: 0 0 0.4rem;
+}
+.section__title::before { content: "# "; color: var(--accent); }
+.section__sub { color: var(--muted); margin: 0 0 2rem; font-size: 0.95rem; }
+
+/* --- Projects ------------------------------------------------------------- */
+.projects { display: grid; gap: 1.2rem; grid-template-columns: 1fr; }
+@media (min-width: 720px) { .projects { grid-template-columns: 1fr 1fr; } }
+
+.card {
+  position: relative;
+  display: flex; flex-direction: column;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.3rem 1.4rem;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
+  transform: scaleX(0); transform-origin: left; transition: transform 0.25s ease;
+}
+.card:hover { transform: translateY(-5px); box-shadow: 0 14px 30px var(--shadow); border-color: var(--accent); }
+.card:hover::before { transform: scaleX(1); }
+.card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.8rem; }
+.card__title { font-size: 1.2rem; font-weight: 700; color: var(--text-bold); margin: 0; }
+.card__year { font-family: 'Ubuntu Mono', monospace; font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+.card__role { font-family: 'Ubuntu Mono', monospace; font-size: 0.78rem; color: var(--accent); margin-top: 0.2rem; }
+.card__desc { font-size: 0.94rem; margin: 0.7rem 0 1rem; }
+.card__tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+.card__tags li {
+  font-family: 'Ubuntu Mono', monospace; font-size: 0.74rem;
+  padding: 0.1rem 0.5rem; border-radius: 6px;
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+}
+.card__tags li::before { content: "#"; opacity: 0.55; }
+.card__links { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: auto; font-family: 'Ubuntu Mono', monospace; font-size: 0.85rem; }
+.card__link { color: var(--text-bold); border-bottom: 1px dotted currentColor; }
+.card__link:hover { color: var(--accent); }
+
+/* --- Skills --------------------------------------------------------------- */
+.skills { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .skills { grid-template-columns: 1fr 1fr; } }
+.skillgroup {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.1rem 1.2rem;
+}
+.skillgroup__label {
+  font-family: 'Ubuntu Mono', monospace; font-size: 0.8rem; color: var(--muted);
+  margin-bottom: 0.7rem;
+}
+.skillgroup__label::before { content: "$ ls "; color: var(--accent-2); }
+.skillgroup__items { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.chip {
+  font-size: 0.85rem; padding: 0.25rem 0.7rem; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text-bold);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.chip:hover { transform: translateY(-2px); border-color: var(--accent); }
+
+/* --- About ---------------------------------------------------------------- */
+.about__grid { display: grid; gap: 1.5rem; grid-template-columns: 1fr; }
+@media (min-width: 760px) { .about__grid { grid-template-columns: 3fr 2fr; align-items: start; } }
+.about__body { font-size: 1rem; }
+.about__body strong { color: var(--text-bold); }
+.about__card {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 1.2rem 1.3rem;
+}
+.about__card h3 { font-family: 'Ubuntu Mono', monospace; font-size: 0.95rem; color: var(--text-bold); margin: 0 0 0.7rem; }
+.about__contacts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; font-family: 'Ubuntu Mono', monospace; font-size: 0.9rem; }
+.about__contacts a { color: var(--text-bold); border-bottom: 1px dotted currentColor; }
+.about__contacts a:hover { color: var(--accent); }
+.about__contacts .k { color: var(--muted); display: inline-block; width: 5rem; }
+
+/* --- Footer --------------------------------------------------------------- */
+.foot { border-top: 1px solid var(--border); margin-top: 2rem; padding: 2rem 0 3rem; }
+.foot__inner { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; justify-content: space-between; font-size: 0.85rem; color: var(--muted); }
+.foot a { color: var(--text); border-bottom: 1px dotted currentColor; }
+.foot a:hover { color: var(--accent); }
+
+/* --- Scroll reveal -------------------------------------------------------- */
+.reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.6s ease, transform 0.6s ease; }
+.reveal.is-visible { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .hero__caret { animation: none; }
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav__inner">
+    <a class="nav__brand" href="/">~/husinhidayatul</a>
+    <button class="nav__toggle" id="navToggle" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="nav__links" id="navLinks">
+      <a class="nav__link" href="#projects">projects</a>
+      <a class="nav__link" href="#skills">skills</a>
+      <a class="nav__link" href="#about">about</a>
+      <a class="nav__link nav__ext" href="/post/">blog &#8599;</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="wrap">
+    <div class="hero__hello mono">// hello world</div>
+    <h1 class="hero__name">Husin Hidayatul</h1>
+    <p class="hero__role">i'm <span class="typed mono" id="typed"></span><span class="hero__caret">.</span></p>
+    <p class="hero__lead">
+      Saya membangun backend dan tooling internal, lalu mendokumentasikan apa yang saya pelajari di
+      <a href="/post/">blog ini</a>. Fokus saya: kode yang teruji, bukan sekadar jalan.
+    </p>
+    <div class="hero__cta">
+      <a class="btn btn--primary" href="#projects">Lihat proyek</a>
+      <a class="btn" href="https://github.com/HusinHakim" target="_blank" rel="noopener">GitHub</a>
+      <a class="btn" href="https://www.linkedin.com/in/" target="_blank" rel="noopener">LinkedIn</a>
+      <a class="btn" href="mailto:husinhidayatul@gmail.com">Email</a>
+    </div>
+  </div>
+</header>
+
+<!-- PROJECTS -->
+<section class="section" id="projects">
+  <div class="wrap">
+    <h2 class="section__title reveal">projects</h2>
+    <p class="section__sub reveal">Beberapa hal yang saya bangun dan rawat.</p>
+    <div class="projects" id="projectGrid"></div>
+  </div>
+</section>
+
+<!-- SKILLS -->
+<section class="section" id="skills">
+  <div class="wrap">
+    <h2 class="section__title reveal">skills</h2>
+    <p class="section__sub reveal">Alat yang sehari-hari saya pakai.</p>
+    <div class="skills" id="skillGrid"></div>
+  </div>
+</section>
+
+<!-- ABOUT -->
+<section class="section" id="about">
+  <div class="wrap">
+    <h2 class="section__title reveal">about</h2>
+    <div class="about__grid reveal">
+      <div class="about__body">
+        <p>
+          Saya <strong>Husin Hidayatul</strong>, mahasiswa di Indonesia yang sedang membangun
+          pengalaman engineering di proyek backend Django dan tools internal.
+        </p>
+        <p>
+          Tulisan di blog saya lahir dari masalah konkret di sprint: saya pecahkan, lalu
+          dokumentasikan. Yang sedang saya pelajari sekarang: testing yang lebih dari sekadar
+          coverage, profiling, dan observability.
+        </p>
+      </div>
+      <aside class="about__card">
+        <h3>$ whoami</h3>
+        <ul class="about__contacts">
+          <li><span class="k">role</span> Backend / QA</li>
+          <li><span class="k">edu</span> ganti: kampus &amp; jurusan</li>
+          <li><span class="k">email</span> <a href="mailto:husinhidayatul@gmail.com">husinhidayatul@gmail.com</a></li>
+          <li><span class="k">github</span> <a href="https://github.com/HusinHakim" target="_blank" rel="noopener">@HusinHakim</a></li>
+          <li><span class="k">linkedin</span> <a href="https://www.linkedin.com/in/" target="_blank" rel="noopener">/in/ (ganti)</a></li>
+        </ul>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="foot">
+  <div class="wrap foot__inner">
+    <span class="mono">&copy; <span id="year"></span> Husin Hidayatul</span>
+    <span><a href="/">home</a> &middot; <a href="/post/">blog</a> &middot; <a href="/about/">about</a></span>
+  </div>
+</footer>
+
+<script>
+/* ============================================================================
+ * EDIT KONTEN DI SINI. Tambah/ubah/hapus item di dua array di bawah.
+ * ========================================================================== */
+
+// Frasa yang diketik di hero (bergantian). Ganti sesuka hati.
+var ROLES = [
+  "a backend engineer",
+  "a Django developer",
+  "a testing enthusiast",
+  "into observability"
+];
+
+// Proyek. Field: name, year, role, desc, tags[], github, demo (demo opsional).
+var PROJECTS = [
+  {
+    name: "Pengajuan Guru Besar",
+    year: "2026",
+    role: "Backend & QA",
+    desc: "Sistem pengajuan jabatan Guru Besar berbasis Django: workflow Kaprodi sampai Admin, dengan monitoring Prometheus + Grafana dan alert ke Discord. Saya pegang testing-nya: TDD, BDD (Schemathesis), mutation testing (mutmut), dan fitness functions.",
+    tags: ["Django", "Postgres", "Prometheus", "Grafana", "GitLab CI"],
+    github: "https://github.com/HusinHakim",
+    demo: ""
+  },
+  {
+    name: "Project Kedua (ganti ini)",
+    year: "2025",
+    role: "Fullstack",
+    desc: "Deskripsi singkat: masalah yang diselesaikan, peran Anda, dan hasilnya dalam 1-2 kalimat.",
+    tags: ["TypeScript", "React", "Next.js"],
+    github: "https://github.com/HusinHakim",
+    demo: "https://example.com"
+  },
+  {
+    name: "Project Ketiga (ganti ini)",
+    year: "2025",
+    role: "Backend",
+    desc: "Duplikat atau hapus blok ini sesuai jumlah proyek yang ingin ditampilkan.",
+    tags: ["Python", "FastAPI", "Redis", "Docker"],
+    github: "https://github.com/HusinHakim",
+    demo: ""
+  }
+];
+
+// Skill, dikelompokkan. Ganti label & isi sesuai kebutuhan.
+var SKILLS = [
+  { label: "languages",  items: ["Python", "TypeScript", "SQL"] },
+  { label: "frameworks", items: ["Django", "FastAPI", "React", "Next.js"] },
+  { label: "tools",      items: ["Docker", "GitLab CI", "Prometheus", "Grafana", "Git"] },
+  { label: "testing",    items: ["pytest", "Schemathesis", "mutmut", "Locust"] }
+];
+
+/* ----------------------------- Rendering --------------------------------- */
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
+function renderProjects() {
+  var html = PROJECTS.map(function (p) {
+    var tags = (p.tags || []).map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("");
+    var links = "";
+    if (p.github) links += '<a class="card__link" href="' + esc(p.github) + '" target="_blank" rel="noopener">GitHub &rarr;</a>';
+    if (p.demo)   links += '<a class="card__link" href="' + esc(p.demo) + '" target="_blank" rel="noopener">Demo &rarr;</a>';
+    return '' +
+      '<article class="card reveal">' +
+        '<div class="card__head">' +
+          '<h3 class="card__title">' + esc(p.name) + '</h3>' +
+          (p.year ? '<span class="card__year">' + esc(p.year) + '</span>' : '') +
+        '</div>' +
+        (p.role ? '<div class="card__role">' + esc(p.role) + '</div>' : '') +
+        (p.desc ? '<p class="card__desc">' + esc(p.desc) + '</p>' : '') +
+        (tags ? '<ul class="card__tags">' + tags + '</ul>' : '') +
+        (links ? '<div class="card__links">' + links + '</div>' : '') +
+      '</article>';
+  }).join("");
+  document.getElementById("projectGrid").innerHTML = html;
+}
+
+function renderSkills() {
+  var html = SKILLS.map(function (g) {
+    var chips = (g.items || []).map(function (i) { return '<span class="chip">' + esc(i) + '</span>'; }).join("");
+    return '' +
+      '<div class="skillgroup reveal">' +
+        '<div class="skillgroup__label">' + esc(g.label) + '</div>' +
+        '<div class="skillgroup__items">' + chips + '</div>' +
+      '</div>';
+  }).join("");
+  document.getElementById("skillGrid").innerHTML = html;
+}
+
+/* ----------------------------- Typing effect ----------------------------- */
+function typeLoop() {
+  var el = document.getElementById("typed");
+  if (!el) return;
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) { el.textContent = ROLES[0]; return; }
+  var i = 0, j = 0, deleting = false;
+  (function tick() {
+    var word = ROLES[i];
+    el.textContent = word.slice(0, j);
+    if (!deleting && j < word.length) { j++; setTimeout(tick, 70); }
+    else if (!deleting && j === word.length) { deleting = true; setTimeout(tick, 1400); }
+    else if (deleting && j > 0) { j--; setTimeout(tick, 35); }
+    else { deleting = false; i = (i + 1) % ROLES.length; setTimeout(tick, 250); }
+  })();
+}
+
+/* ----------------------------- Scroll reveal ----------------------------- */
+function initReveal() {
+  var els = document.querySelectorAll(".reveal");
+  if (!("IntersectionObserver" in window)) {
+    els.forEach(function (el) { el.classList.add("is-visible"); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) { e.target.classList.add("is-visible"); io.unobserve(e.target); }
+    });
+  }, { threshold: 0.12 });
+  els.forEach(function (el) { io.observe(el); });
+}
+
+/* ----------------------------- Mobile nav -------------------------------- */
+function initNav() {
+  var btn = document.getElementById("navToggle");
+  var links = document.getElementById("navLinks");
+  if (!btn || !links) return;
+  btn.addEventListener("click", function () {
+    var open = links.classList.toggle("open");
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  links.addEventListener("click", function (e) {
+    if (e.target.tagName === "A") { links.classList.remove("open"); btn.setAttribute("aria-expanded", "false"); }
+  });
+}
+
+/* ----------------------------- Boot -------------------------------------- */
+document.getElementById("year").textContent = new Date().getFullYear();
+renderProjects();
+renderSkills();
+initReveal();
+initNav();
+typeLoop();
+</script>
+</body>
+</html>
