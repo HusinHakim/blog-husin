@@ -10,13 +10,13 @@ categories = ["frontend"]
 
 ![One CRUD engine in the middle feeding two outputs: an Admin dashboard rendered as a card on the left, and a Guru Besar dashboard rendered inside a WidgetShell on the right, switched by a variant prop](/images/variant-prop-cover.png)
 
-The merge request was green on every check except one. SonarQube failed the **Duplicated Lines** gate, and the culprit was a file I had written myself two hours earlier: `PostinganPanelWidget.tsx`, **681 lines**, almost character-for-character identical to a component that already existed in the admin dashboard. This is the story of how I deleted 680 of those lines, and what each step was really buying in SOLID terms. Not the textbook definitions, the actual diff.
+The merge request was green on every check except one. SonarQube failed the **Duplicated Lines** gate, and the culprit was a file I had written myself two hours earlier: `PostinganPanelWidget.tsx`, **681 lines**, almost character-for-character identical to a component that already existed in the admin dashboard. This is the story of how I deleted 680 of those lines, and which SOLID principle each step actually bought. Not textbook definitions, the real diff.
 
 ## How I ended up with two copies
 
 The admin dashboard on our Guru Besar Mengajar project already had a fully working "Postingan Saya" panel: a paginated CRUD surface (list, create, edit, delete, detail) living in `DashboardPostinganModule`. When the Guru Besar dashboard redesign landed, it needed the **same** panel, but in a different visual frame. Every widget on that dashboard is wrapped in a shared `WidgetShell` (icon, title, subtitle, an action slot), while the admin version sits in a plain bordered `<section>`.
 
-The fastest path to a working screen was the obvious one: copy `DashboardPostinganModule` into a new `PostinganPanelWidget`, swap the outer `<section>` for `<WidgetShell>`, and ship it. It worked. Tests passed. Coverage was 100%. And it was wrong, because now there were two files holding the same fetch-list-paginate-mutate logic.
+The fastest path was the obvious one: copy `DashboardPostinganModule` into a new `PostinganPanelWidget`, swap the `<section>` for `<WidgetShell>`, ship it. It worked, tests passed, coverage was 100%. And it was wrong, because now two files held the same fetch-list-paginate-mutate logic.
 
 ```tsx
 // PostinganPanelWidget.tsx: the duplicate (681 lines)
@@ -31,11 +31,11 @@ export default function PostinganPanelWidget() {
 
 ![Two near-identical Postingan panels pushed SonarQube duplicated lines to about 11 percent, failing the quality gate; deduplicating dropped it to zero](/images/variant-prop-sonar-gate.png)
 
-The duplication gate is not bureaucracy here. It is a fitness function pointing at a real maintenance hazard: every future change to postingan behaviour, a new field, a validation rule, a pagination tweak, would now have to be made twice, and the second edit is the one everyone forgets. The gate forced the design conversation I should have had upfront.
+The duplication gate is not bureaucracy here. It is a fitness function pointing at a real maintenance hazard: every future change to postingan behaviour would now have to be made twice. The gate forced a design conversation I had skipped.
 
 ## The wrong fix, and the one I picked
 
-The tempting "fix" is to extract a `usePostingan` hook and share it between two components. That removes some duplication but keeps two component shells in sync forever, and the bug surface (the JSX, the dialog wiring, the `aria` attributes) is exactly where our copies had already started to drift.
+The tempting "fix" is to extract a `usePostingan` hook shared by two components. That removes some duplication but keeps two JSX shells in sync forever, and the markup, the dialog wiring, the `aria` attributes, is exactly where the copies had already begun to drift.
 
 Instead I treated the two panels as **one component with two presentations**. The CRUD engine is identical; only the outer chrome differs. That is a textbook case for the **Open/Closed Principle**: I want to *extend* the module to support a new look without *modifying* the behaviour the admin dashboard already depends on. The extension point is a single prop.
 
@@ -51,7 +51,7 @@ export default function DashboardPostinganModule({
 }: DashboardPostinganModuleProps) {
 ```
 
-The default value matters. Existing callers pass no `variant`, get `'card'`, and render exactly what they rendered before. No admin test changed. That is the "closed for modification" half of OCP doing its job: an extension that is invisible to everything that came before it.
+The default value matters. Existing callers pass no `variant`, get `'card'`, and render exactly what they rendered before; no admin test changed. That is the "closed for modification" half of OCP: an extension invisible to everything that came before it.
 
 ## Separating the engine from its frame
 
@@ -91,7 +91,7 @@ return variant === 'widget' ? (
 )
 ```
 
-This is **Separation of Concerns** made physical. `body` knows about postingan data and nothing about layout. The two branches know about layout and nothing about how the data got there. The boundary is the `body` variable: one thing the data layer owns, handed to whichever frame the presentation layer chooses.
+This is **Separation of Concerns** made physical. `body` knows about postingan data and nothing about layout; the two branches know about layout and nothing about how the data got there. The `body` variable is the boundary: data on one side, frame choice on the other.
 
 ## Composition, not configuration
 
@@ -110,9 +110,9 @@ export interface WidgetShellProps {
 
 ![WidgetShell as a frame with three named slots: an icon slot, a title/subtitle block with an action slot beside it, and a children slot below holding the shared CRUD body](/images/variant-prop-widgetshell.png)
 
-Those three `ReactNode` props (`icon`, `action`, `children`) are composition slots. The module does not configure the shell through a pile of boolean flags like `showIcon` or `headerStyle`; it *composes* the shell by handing it ready-made nodes. This is the **Dependency Inversion** instinct applied to UI: the shell depends on the abstraction "some renderable node", not on the concrete postingan button or the concrete `FileText` icon. I could drop that same `WidgetShell` around a calendar, a chart, or a to-do list, and it would not need a single edit. It is closed for modification precisely because it never assumed what it would contain.
+Those three `ReactNode` props (`icon`, `action`, `children`) are composition slots, and two SOLID letters fall out of them at once. First, **Dependency Inversion**: the shell depends on the abstraction "some renderable node", not on the concrete postingan button or the concrete `FileText` icon, so the high-level frame and the low-level content both lean on the `ReactNode` boundary instead of on each other. The module does not configure the shell through a pile of boolean flags like `showIcon` or `headerStyle`; it *composes* the shell by handing it ready-made nodes. Second, **Interface Segregation**: every slot except `children` is optional (`icon?`, `subtitle?`, `action?`), so a widget that only needs a title and a body is never forced to depend on parts of the interface it will not use. I could drop that same `WidgetShell` around a calendar, a chart, or a to-do list, and it would not need a single edit, because it never assumed what it would contain.
 
-The `action` slot is also where a smaller **Single Responsibility** refactor paid off. The "create" button plus the count label had been living inline inside `DashboardPostinganHeader`. The widget variant needed that same control, but in the shell's `action` slot rather than in the card's header. So I extracted it once:
+The `action` slot is also where a smaller **Single Responsibility** win landed. The "create" button and count label had lived inline inside `DashboardPostinganHeader`; the widget variant needed the same control in the shell's `action` slot, so I extracted it once:
 
 ```tsx
 function DashboardPostinganHeaderAction({ count, onCreateClick }: DashboardPostinganHeaderActionProps) {
@@ -127,7 +127,7 @@ function DashboardPostinganHeaderAction({ count, onCreateClick }: DashboardPosti
 }
 ```
 
-Now `DashboardPostinganHeader` (the card path) renders `<DashboardPostinganHeaderAction />`, and the `WidgetShell` action slot renders the very same component. One button, one place to change its copy or its focus ring, two call sites. The header stopped doing two jobs (describing the panel *and* building the action) and went back to doing one.
+Now the card header and the `WidgetShell` action slot render the very same `<DashboardPostinganHeaderAction />`. One button, one place to change its copy or focus ring, two call sites. The header stopped doing two jobs and went back to one.
 
 ## The payoff: a four-line component
 
@@ -143,13 +143,13 @@ export default function PostinganPanelWidget() {
 
 ![Before and after of PostinganPanelWidget: a 681-line full copy of the CRUD logic on the left, a four-line wrapper that renders DashboardPostinganModule with variant widget on the right, for a net of 680 deletions and 99 insertions with coverage kept at 100 percent](/images/variant-prop-before-after.png)
 
-That is the entire file. Its single responsibility is to *name a configuration*: the Guru Besar role, in the widget presentation. It has no logic to test beyond "does it render the module with these props", which is exactly the kind of component you want, the kind where there is nowhere for a bug to hide.
+That is the entire file. Its single responsibility is to *name a configuration*: the Guru Besar role, in the widget presentation. There is no logic to test beyond "does it render the module with these props", and nowhere for a bug to hide.
 
-The commit came out at **99 insertions and 1,335 deletions** across the four touched files, a net removal of more than 1,200 lines, with the duplication gate back to green.
+The commit came out at **99 insertions and 1,335 deletions** across four files, a net removal over 1,200 lines, with the duplication gate back to green.
 
 ## Keeping it honest with tests
 
-None of this would be safe to claim without tests proving behaviour did not move. The work was test-first throughout the dashboard rebuild: every widget landed as a `[RED]` failing test followed by a `[GREEN]` implementation. For the dedup, the discipline was slightly different, the behaviour already existed and had to *stay* identical, so the existing `PostinganPanelWidget.test.tsx` suite became the safety net. Most of its 627 lines were deleted alongside the duplicate logic, because those assertions now belonged to the module's own suite.
+None of this is safe to claim without tests proving behaviour did not move. The dashboard rebuild was test-first throughout, every widget landing as a `[RED]` test then a `[GREEN]` implementation. For the dedup the behaviour already existed and had to *stay* identical, so the existing `PostinganPanelWidget.test.tsx` suite was the safety net; most of its 627 lines were deleted with the duplicate logic, since those assertions now belonged to the module.
 
 I added 16 lines to `DashboardPostinganModule.test.tsx` to pin the new branch: rendering with `variant="widget"` must produce the `WidgetShell` header, and rendering without it must still produce the plain `<section>`. Both files stayed at 100% coverage. The `variant` branch is the only new behaviour, and it is the one thing the new tests assert directly.
 
@@ -160,13 +160,18 @@ it('renders inside a WidgetShell when variant is "widget"', () => {
 })
 ```
 
+There is a quiet **Liskov** guarantee underneath those tests. Both variants expose the identical `aria-label="Postingan Saya"` contract and render the exact same `body`, so swapping `'card'` for `'widget'` never weakens what a caller can rely on: the panel still lists, paginates, and mutates postingan the same way. One presentation is a behaviour-preserving substitute for the other, and the suite asserts that contract on both branches rather than trusting it.
+
 ## What the gate was really teaching
 
-It is easy to read a SonarQube duplication failure as a chore: trim some lines, move on. But the gate was pointing at a design decision I had quietly deferred. "Two dashboards need the same panel" is not a copy-paste problem, it is a question about where the variation actually lives. Once I named the variation, it was a single axis (`card` versus `widget`) sitting on top of an otherwise identical engine, the rest of SOLID fell out almost mechanically:
+It is easy to read a SonarQube duplication failure as a chore: trim some lines, move on. But the gate was pointing at a design decision I had quietly deferred. "Two dashboards need the same panel" is not a copy-paste problem, it is a question about where the variation actually lives. Once I named the variation, it was a single axis (`card` versus `widget`) sitting on top of an otherwise identical engine, and the full SOLID set fell out almost mechanically. Each letter maps to a concrete line of the diff, not a slogan:
 
-- **OCP** gave me the `variant` prop with a safe default, so extending the module never touched the admin path.
-- **SRP** pushed the action button into its own component and kept the four-line wrapper responsible for one decision.
-- **SoC** drew the line between the `body` (data) and the two frames (presentation).
-- **Composition / DIP** let `WidgetShell` accept slots instead of knowing anything about postingan, so it stays reusable for the next widget.
+- **S, Single Responsibility:** the action button became its own `DashboardPostinganHeaderAction`, the header went back to one job, and the wrapper does nothing but name a configuration.
+- **O, Open/Closed:** the `variant` prop with its `'card'` default extends the module for a new look without modifying the admin path that every existing caller depends on.
+- **L, Liskov:** both variants honour the same `aria-label` and the same `body`, so either presentation substitutes for the other without weakening the panel's contract.
+- **I, Interface Segregation:** `WidgetShell`'s optional `icon?`, `subtitle?`, and `action?` slots let a consumer depend only on the parts it actually renders.
+- **D, Dependency Inversion:** `WidgetShell` depends on the `ReactNode` abstraction, never on anything postingan-specific, so it stays reusable for the next widget.
+
+And the maintenance payoff is the point the gate was really making: a new postingan field, a copy change, or a validation rule is now a one-file edit that both dashboards inherit for free, instead of two edits where the second is the one you forget.
 
 The reusable-shell-plus-thin-wrapper shape is the same one I keep reaching for elsewhere on this project, and it is worth internalising: when two screens look like a copy, the duplication is rarely the disease. It is the symptom of a variation you have not named yet. Name it, and the 680 lines tend to delete themselves.
